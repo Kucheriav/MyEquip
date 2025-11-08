@@ -1,12 +1,17 @@
 from fastapi import FastAPI
-from . import models, database, crud, schemas
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+
+
+logger = logging.getLogger(__name__)
+logger.info("FastAPI starting...")
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
+
 
 models.Base.metadata.create_all(bind=database.engine)
 
@@ -17,3 +22,8 @@ def list_items():
 @app.post("/items/")
 def create_item(item: schemas.ItemCreate):
     return crud.create_item(database.get_db(), item)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
