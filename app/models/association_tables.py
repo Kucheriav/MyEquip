@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Enum, Table, ForeignKey
+from sqlalchemy import Column, Integer, Enum, Table, ForeignKey, String
 from app.database import Base
 
 
@@ -7,10 +7,11 @@ UserInClubAssociation = Table(
     Base.metadata,
     Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
     Column('club_id', Integer, ForeignKey('clubs.id'), primary_key=True),
-    Column('privileges_id', Enum('getter', 'giver', 'owner', name="user_privileges_enum"), nullable=False)
+    Column('privileges', Enum('getter', 'giver', 'owner', name="user_privileges_enum"),
+           nullable=False, default='getter')
 )
 
-Category_Parameter_Association = Table(
+CategoryParameterAssociation = Table(
     'category_parameter',
     Base.metadata,
     Column('category_id', Integer, ForeignKey('categories.id'), primary_key=True),

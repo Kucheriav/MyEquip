@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Enum
+from sqlalchemy import Column, Integer, String, Enum
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -6,8 +6,20 @@ from app.database import Base
 
 class Parameter(Base):
     __tablename__ = "parameters"
+
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    param_type = Column(Enum('int', 'bool', 'str', name="param_type_enum"), nullable=False)
-    values = relationship("Value", back_populates="parameter")
-    categories = relationship("Parameter", back_populates="parameter")
+    name = Column(String, nullable=False)
+    param_type = Column(
+        Enum('int', 'bool', 'str', 'float', name="param_type_enum"),
+        nullable=False,
+        default='str'
+    )
+
+    # Relationships
+    values = relationship("Value", back_populates="parameter", cascade="all, delete-orphan")
+    categories = relationship(
+        "Category",
+        secondary="category_parameter",
+        back_populates="parameters"
+    )
+    item_values = relationship("ItemParameterValue", back_populates="parameter")

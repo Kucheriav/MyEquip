@@ -5,9 +5,18 @@ from app.database import Base
 
 class Category(Base):
     __tablename__ = "categories"
-    id = Column(Integer, primary_key=True)
-    parent_id = Column(Integer, ForeignKey('categories.id'))
-    title = Column(String)
-    club_id = Column(Integer, ForeignKey('clubs.id'))
-    parent = relationship("Category", remote_side=[id])
-    parameters = relationship("Parameter", back_populates="category")
+
+    id = Column(Integer, primary_key=True, index=True)
+    parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
+    title = Column(String, nullable=False)
+    club_id = Column(Integer, ForeignKey('clubs.id'), nullable=False)
+
+    # Relationships
+    club = relationship("Club", back_populates="categories")
+    parent = relationship("Category", remote_side=[id], backref="children")
+    items = relationship("Item", back_populates="category")
+    parameters = relationship(
+        "Parameter",
+        secondary="category_parameter",
+        back_populates="categories"
+    )
