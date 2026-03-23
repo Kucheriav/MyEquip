@@ -7,3 +7,4 @@ class Item(Base):
     name = Column(String, index=True)
     category_id = Column(Integer, ForeignKey('categories.id'))
     storage_id = Column(Integer, ForeignKey('storages.id'))
+    owner_id = Column(Integer, ForeignKey('users.id'))
