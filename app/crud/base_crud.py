@@ -14,7 +14,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def create(self, db: AsyncSession, obj_in: CreateSchemaType) -> ModelType:
         """Create a new object"""
-        db_obj = self.model(**obj_in.dict())
+        db_obj = self.model(**obj_in.model_dump())
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
@@ -34,7 +34,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def update(self, db: AsyncSession, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
         """Update an object"""
-        update_data = obj_in.dict(exclude_unset=True)
+        update_data = obj_in.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         db.add(db_obj)

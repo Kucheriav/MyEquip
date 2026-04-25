@@ -12,6 +12,8 @@ class Distribution(Base):
     getter_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     accepter_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     accepting_date = Column(Date, nullable=True)
+    expiration_date = Column(Date, nullable=True)
+    distribution_date = Column(Date, nullable=False)
     status = Column(
         Enum('issued', 'returned', 'lost', 'extended', name="distribution_status_enum"),
         default='issued',
