@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -12,3 +12,7 @@ class Value(Base):
 
     # Relationships
     parameter = relationship("Parameter", back_populates="values")
+
+    __table_args__ = (
+        Index('ix_value_param', 'parameter_id'),
+    )

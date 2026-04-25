@@ -9,6 +9,7 @@ class BreakdownBase(BaseModel):
     date: date
     repaired_date: Optional[date] = None
     repairer_id: Optional[int] = None
+    status: str = 'reported'
 
 
 class BreakdownCreate(BreakdownBase):
@@ -19,6 +20,7 @@ class BreakdownUpdate(BaseModel):
     comment: Optional[str] = None
     repaired_date: Optional[date] = None
     repairer_id: Optional[int] = None
+    status: Optional[str] = None
 
 
 class BreakdownResponse(BreakdownBase):

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import TypeVar, Generic, Type, List, Optional, Dict, Any
 
 ModelType = TypeVar("ModelType")
@@ -12,43 +12,49 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(self, model: Type[ModelType]):
         self.model = model
 
-    def create(self, db: Session, obj_in: CreateSchemaType) -> ModelType:
+    async def create(self, db: AsyncSession, obj_in: CreateSchemaType) -> ModelType:
         """Create a new object"""
         db_obj = self.model(**obj_in.dict())
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def get(self, db: Session, obj_id: int) -> Optional[ModelType]:
+    async def get(self, db: AsyncSession, obj_id: int) -> Optional[ModelType]:
         """Get object by ID"""
-        return db.query(self.model).filter(self.model.id == obj_id).first()
+        from sqlalchemy import select
+        result = await db.execute(select(self.model).filter(self.model.id == obj_id))
+        return result.scalar_one_or_none()
 
-    def get_all(self, db: Session, skip: int = 0, limit: int = 100) -> List[ModelType]:
+    async def get_all(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> List[ModelType]:
         """Get all objects with pagination"""
-        return db.query(self.model).offset(skip).limit(limit).all()
+        from sqlalchemy import select
+        result = await db.execute(select(self.model).offset(skip).limit(limit))
+        return list(result.scalars().all())
 
-    def update(self, db: Session, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
+    async def update(self, db: AsyncSession, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
         """Update an object"""
         update_data = obj_in.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def delete(self, db: Session, obj_id: int) -> bool:
+    async def delete(self, db: AsyncSession, obj_id: int) -> bool:
         """Delete an object"""
-        db_obj = self.get(db, obj_id)
+        db_obj = await self.get(db, obj_id)
         if db_obj:
-            db.delete(db_obj)
-            db.commit()
+            await db.delete(db_obj)
+            await db.commit()
             return True
         return False
 
-    def get_by_field(self, db: Session, field_name: str, value: Any) -> Optional[ModelType]:
+    async def get_by_field(self, db: AsyncSession, field_name: str, value: Any) -> Optional[ModelType]:
         """Get object by any field"""
-        return db.query(self.model).filter(
+        from sqlalchemy import select
+        result = await db.execute(select(self.model).filter(
             getattr(self.model, field_name) == value
-        ).first()
+        ))
+        return result.scalar_one_or_none()

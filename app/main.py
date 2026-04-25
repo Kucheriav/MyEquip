@@ -2,36 +2,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-
-logger = logging.getLogger(__name__)
-logger.info("FastAPI starting...")
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
-)
-
-
-models.Base.metadata.create_all(bind=database.engine)
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.database import create_all_tables
+from app.database import engine, Base
 from app.routers import (
     user_router, club_router, category_router, parameter_router,
     value_router, storage_router, item_router, distribution_router,
     breakdown_router, item_parameter_value_router
 )
 
-# Create FastAPI application
+
+logger = logging.getLogger(__name__)
+logger.info("FastAPI starting...")
+
 app = FastAPI(
     title="MyEquip API",
     description="Equipment rental and tracking system",
     version="1.0.0"
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,10 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create all database tables
-create_all_tables()
 
-# Include routers
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 app.include_router(user_router.router)
 app.include_router(club_router.router)
 app.include_router(category_router.router)

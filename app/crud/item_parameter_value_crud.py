@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.models import ItemParameterValue
 from app.schemas.item_parameter_value_schema import (
     ItemParameterValueCreate, ItemParameterValueResponse
@@ -11,15 +12,15 @@ class ItemParameterValueCRUD(BaseCRUD[ItemParameterValue, ItemParameterValueCrea
     def __init__(self):
         super().__init__(ItemParameterValue)
 
-    def get_by_item(self, db: Session, item_id: int) -> List[ItemParameterValue]:
-        return db.query(ItemParameterValue).filter(
-            ItemParameterValue.item_id == item_id
-        ).all()
+    async def get_by_item(self, db: AsyncSession, item_id: int) -> List[ItemParameterValue]:
+        result = await db.execute(
+            select(ItemParameterValue).filter(ItemParameterValue.item_id == item_id))
+        return list(result.scalars().all())
 
-    def get_by_parameter(self, db: Session, parameter_id: int) -> List[ItemParameterValue]:
-        return db.query(ItemParameterValue).filter(
-            ItemParameterValue.parameter_id == parameter_id
-        ).all()
+    async def get_by_parameter(self, db: AsyncSession, parameter_id: int) -> List[ItemParameterValue]:
+        result = await db.execute(
+            select(ItemParameterValue).filter(ItemParameterValue.parameter_id == parameter_id))
+        return list(result.scalars().all())
 
 
 item_parameter_value_crud = ItemParameterValueCRUD()

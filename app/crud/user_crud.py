@@ -1,23 +1,28 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.models import User
 from app.schemas.user_schema import UserCreate, UserUpdate
 from app.crud.base_crud import BaseCRUD
+from typing import List
 
 
 class UserCRUD(BaseCRUD[User, UserCreate, UserUpdate]):
     def __init__(self):
         super().__init__(User)
 
-    def get_by_email(self, db: Session, email: str) -> User:
-        return db.query(User).filter(User.email == email).first()
+    async def get_by_email(self, db: AsyncSession, email: str) -> User:
+        result = await db.execute(select(User).filter(User.email == email))
+        return result.scalar_one_or_none()
 
-    def get_by_phone(self, db: Session, phone: str) -> User:
-        return db.query(User).filter(User.phone == phone).first()
+    async def get_by_phone(self, db: AsyncSession, phone: str) -> User:
+        result = await db.execute(select(User).filter(User.phone == phone))
+        return result.scalar_one_or_none()
 
-    def get_by_club(self, db: Session, club_id: int):
-        return db.query(User).join(User.clubs).filter(
-            User.clubs.any(id=club_id)
-        ).all()
+    async def get_by_club(self, db: AsyncSession, club_id: int) -> List[User]:
+        result = await db.execute(
+            select(User).join(User.clubs).filter(User.clubs.any(id=club_id))
+        )
+        return list(result.scalars().all())
 
 
 user_crud = UserCRUD()
