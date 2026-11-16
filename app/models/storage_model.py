@@ -14,3 +14,5 @@ class Storage(Base):
     # Relationships
     club = relationship("Club", back_populates="storages")
     items = relationship("Item", back_populates="storage")
+    outgoing_transfers = relationship("Transfer", foreign_keys="Transfer.from_storage_id", back_populates="from_storage")
+    incoming_transfers = relationship("Transfer", foreign_keys="Transfer.to_storage_id", back_populates="to_storage")

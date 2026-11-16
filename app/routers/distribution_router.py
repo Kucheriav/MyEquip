@@ -10,9 +10,10 @@ from app.schemas.distribution_schema import (
     DistributionCreate, DistributionUpdate, DistributionResponse
 )
 from app.services import distribution_service, BusinessRuleError
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/distributions", tags=["distributions"])
+router = APIRouter(prefix="/api/distributions", tags=["distributions"], dependencies=[Depends(require_auth)])
 distribution_crud = DistributionCRUD()
 
 

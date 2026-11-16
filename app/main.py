@@ -4,7 +4,8 @@ from app.database import create_all_tables
 from app.routers import (
     user_router, club_router, category_router, parameter_router,
     value_router, storage_router, item_router, distribution_router,
-    breakdown_router, item_parameter_value_router
+    breakdown_router, item_parameter_value_router, transfer_router,
+    auth_router,
 )
 
 # Create FastAPI application
@@ -37,6 +38,8 @@ app.include_router(item_router.router)
 app.include_router(distribution_router.router)
 app.include_router(breakdown_router.router)
 app.include_router(item_parameter_value_router.router)
+app.include_router(transfer_router.router)
+app.include_router(auth_router.router)
 
 
 @app.get("/", tags=["root"])

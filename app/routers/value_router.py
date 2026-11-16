@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import ValueCRUD
 from app.schemas.value_schema import ValueCreate, ValueUpdate, ValueResponse
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/values", tags=["values"])
+router = APIRouter(prefix="/api/values", tags=["values"], dependencies=[Depends(require_auth)])
 value_crud = ValueCRUD()
 
 

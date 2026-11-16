@@ -14,6 +14,10 @@ class Config(BaseSettings):
     DB_NAME: str
     PASSWORD_SALT: str
     BOT_API_KEY: str = ""
+    # Auth settings
+    SECRET_KEY: str = "dev-secret-change-me"
+    AUTH_ENABLED: bool = False
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")

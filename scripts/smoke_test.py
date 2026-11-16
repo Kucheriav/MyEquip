@@ -203,7 +203,76 @@ else:
     print(f"FAIL  item status is '{repaired_item['status']}' after repair (expected 'available')")
     failures.append("item status after repair")
 
-# 12. Reads back
+# 12. Transfer between storages
+storage2 = check(
+    "create second storage",
+    requests.post(f"{BASE_URL}/storages/", json={"name": f"test-storage2-{stamp}", "address": "ул. Горная, 2", "club_id": club_id}),
+    201,
+)
+storage2_id = storage2["id"]
+check(
+    "transfer item to storage2",
+    requests.post(f"{BASE_URL}/transfers/", json={
+        "item_id": item_id, "from_storage_id": storage_id, "to_storage_id": storage2_id,
+        "date": today.isoformat(), "mover_id": user_id,
+        "comment": "передали в другой клуб",
+    }),
+    201,
+)
+moved_item = requests.get(f"{BASE_URL}/items/{item_id}").json()
+if moved_item["storage_id"] == storage2_id:
+    print("PASS  item storage updated after transfer")
+else:
+    print(f"FAIL  item storage is {moved_item['storage_id']} (expected {storage2_id})")
+    failures.append("item storage after transfer")
+# 12a. Transfer from a wrong source storage is rejected
+bad_transfer = requests.post(f"{BASE_URL}/transfers/", json={
+    "item_id": item_id, "from_storage_id": storage_id, "to_storage_id": storage2_id,
+    "date": today.isoformat(),
+})
+if bad_transfer.status_code == 400:
+    print("PASS  transfer from wrong source rejected with 400")
+else:
+    print(f"FAIL  bad transfer: {bad_transfer.status_code} (expected 400)")
+    failures.append("bad transfer")
+check("transfer history", requests.get(f"{BASE_URL}/transfers/item/{item_id}"))
+
+# 13. Auth: register + login + me
+auth_password = "S3cure-pass"
+reg = requests.post(f"{BASE_URL}/auth/register", json={
+    "name": "Аут", "surname": "Тестов", "email": f"auth-{stamp}@example.com",
+    "phone": f"+7902{stamp[-7:]}", "password": auth_password,
+})
+if reg.status_code == 201:
+    print("PASS  auth register: 201")
+else:
+    print(f"FAIL  auth register: {reg.status_code} {reg.text[:150]}")
+    failures.append("auth register")
+login = requests.post(f"{BASE_URL}/auth/login", json={
+    "email": f"auth-{stamp}@example.com", "password": auth_password,
+})
+if login.status_code == 200 and "access_token" in login.json():
+    print("PASS  auth login: 200 with token")
+    token = login.json()["access_token"]
+    me = requests.get(f"{BASE_URL}/auth/me", headers={"Authorization": f"Bearer {token}"})
+    if me.status_code == 200:
+        print("PASS  /auth/me returns the user")
+    else:
+        print(f"FAIL  /auth/me: {me.status_code}")
+        failures.append("auth me")
+    bad_login = requests.post(f"{BASE_URL}/auth/login", json={
+        "email": f"auth-{stamp}@example.com", "password": "wrong",
+    })
+    if bad_login.status_code == 401:
+        print("PASS  wrong password rejected with 401")
+    else:
+        print(f"FAIL  wrong password: {bad_login.status_code} (expected 401)")
+        failures.append("auth wrong password")
+else:
+    print(f"FAIL  auth login: {login.status_code} {login.text[:150]}")
+    failures.append("auth login")
+
+# 14. Reads back
 check("get item", requests.get(f"{BASE_URL}/items/{item_id}"))
 check("list storages", requests.get(f"{BASE_URL}/storages"))
 check("item parameters", requests.get(f"{BASE_URL}/item-parameters/item/{item_id}"))

@@ -5,9 +5,10 @@ from app.crud import ItemParameterValueCRUD
 from app.schemas.item_parameter_value_schema import (
     ItemParameterValueCreate, ItemParameterValueResponse
 )
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/item-parameters", tags=["item-parameters"])
+router = APIRouter(prefix="/api/item-parameters", tags=["item-parameters"], dependencies=[Depends(require_auth)])
 item_param_crud = ItemParameterValueCRUD()
 
 

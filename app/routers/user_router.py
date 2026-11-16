@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import UserCRUD
 from app.schemas.user_schema import UserCreate, UserUpdate, UserResponse
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(require_auth)])
 user_crud = UserCRUD()
 
 

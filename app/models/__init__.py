@@ -7,6 +7,7 @@ from app.models.item_model import Item
 from app.models.storage_model import Storage
 from app.models.distribution_model import Distribution
 from app.models.breakdown_model import Breakdown
+from app.models.transfer_model import Transfer
 from app.models.item_parameter_value_model import ItemParameterValue
 from app.models.association_tables import UserInClubAssociation, CategoryParameterAssociation
 
@@ -20,6 +21,7 @@ __all__ = [
     "Storage",
     "Distribution",
     "Breakdown",
+    "Transfer",
     "ItemParameterValue",
     "UserInClubAssociation",
     "CategoryParameterAssociation",

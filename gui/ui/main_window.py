@@ -6,6 +6,7 @@ from .tabs.clubs_tab import ClubsTab
 from .tabs.distributions_tab import DistributionsTab
 from .tabs.items_tab import ItemsTab
 from .tabs.storages_tab import StoragesTab
+from .tabs.transfers_tab import TransfersTab
 from .tabs.users_tab import UsersTab
 
 
@@ -25,6 +26,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(ClubsTab(), 'Клубы')
         self.tabs.addTab(DistributionsTab(), 'Выдача')
         self.tabs.addTab(ItemsTab(), 'Снаряга')
+        self.tabs.addTab(TransfersTab(), 'Перемещения')
         self.tabs.addTab(StoragesTab(), "Склады")
         self.tabs.addTab(UsersTab(), 'Туристы')
 

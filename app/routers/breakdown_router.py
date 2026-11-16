@@ -10,9 +10,10 @@ from app.schemas.breakdown_schema import (
     BreakdownCreate, BreakdownUpdate, BreakdownResponse
 )
 from app.services import breakdown_service, BusinessRuleError
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/breakdowns", tags=["breakdowns"])
+router = APIRouter(prefix="/api/breakdowns", tags=["breakdowns"], dependencies=[Depends(require_auth)])
 breakdown_crud = BreakdownCRUD()
 
 

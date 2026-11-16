@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import ItemCRUD
 from app.schemas.item_schema import ItemCreate, ItemUpdate, ItemResponse
+from app.dependencies import require_auth
 from typing import List, Optional
 
-router = APIRouter(prefix="/api/items", tags=["items"])
+router = APIRouter(prefix="/api/items", tags=["items"], dependencies=[Depends(require_auth)])
 item_crud = ItemCRUD()
 
 

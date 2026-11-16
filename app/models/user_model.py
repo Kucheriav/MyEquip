@@ -40,3 +40,5 @@ class User(Base):
         back_populates="accepter"
     )
     breakdowns_repaired = relationship("Breakdown", back_populates="repairer")
+    transfers_sent = relationship("Transfer", foreign_keys="Transfer.mover_id", back_populates="mover")
+    transfers_received = relationship("Transfer", foreign_keys="Transfer.receiver_id", back_populates="receiver")

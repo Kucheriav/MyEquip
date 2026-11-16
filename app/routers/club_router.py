@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import ClubCRUD
 from app.schemas.club_schema import ClubCreate, ClubUpdate, ClubResponse
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/clubs", tags=["clubs"])
+router = APIRouter(prefix="/api/clubs", tags=["clubs"], dependencies=[Depends(require_auth)])
 club_crud = ClubCRUD()
 
 

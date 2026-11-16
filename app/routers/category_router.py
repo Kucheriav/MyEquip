@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import CategoryCRUD
 from app.schemas.category_schema import CategoryCreate, CategoryUpdate, CategoryResponse
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/categories", tags=["categories"])
+router = APIRouter(prefix="/api/categories", tags=["categories"], dependencies=[Depends(require_auth)])
 category_crud = CategoryCRUD()
 
 

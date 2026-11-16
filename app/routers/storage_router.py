@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import StorageCRUD
 from app.schemas.storage_schema import StorageCreate, StorageUpdate, StorageResponse
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/storages", tags=["storages"])
+router = APIRouter(prefix="/api/storages", tags=["storages"], dependencies=[Depends(require_auth)])
 storage_crud = StorageCRUD()
 
 

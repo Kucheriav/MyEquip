@@ -9,6 +9,8 @@ from app.routers import (
     distribution_router,
     breakdown_router,
     item_parameter_value_router,
+    transfer_router,
+    auth_router,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "distribution_router",
     "breakdown_router",
     "item_parameter_value_router",
+    "transfer_router",
+    "auth_router",
 ]

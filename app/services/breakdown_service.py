@@ -8,10 +8,7 @@ from app.crud.breakdown_crud import breakdown_crud
 from app.crud.item_crud import item_crud
 from app.models import Breakdown
 from app.schemas.breakdown_schema import BreakdownCreate, BreakdownUpdate
-
-
-class BusinessRuleError(Exception):
-    """Domain rule violation -> routers map it to HTTP 400/404."""
+from app.services.exceptions import BusinessRuleError
 
 
 def create_breakdown(db: Session, data: BreakdownCreate) -> Breakdown:

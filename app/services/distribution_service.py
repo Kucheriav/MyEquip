@@ -8,10 +8,7 @@ from app.crud.distribution_crud import distribution_crud
 from app.crud.item_crud import item_crud
 from app.models import Distribution
 from app.schemas.distribution_schema import DistributionCreate, DistributionUpdate
-
-
-class BusinessRuleError(Exception):
-    """Domain rule violation -> routers map it to HTTP 400/404."""
+from app.services.exceptions import BusinessRuleError
 
 
 # What an item's status becomes after a distribution changes to this status

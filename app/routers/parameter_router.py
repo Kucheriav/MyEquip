@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.crud import ParameterCRUD
 from app.schemas.parameter_schema import ParameterCreate, ParameterUpdate, ParameterResponse
+from app.dependencies import require_auth
 from typing import List
 
-router = APIRouter(prefix="/api/parameters", tags=["parameters"])
+router = APIRouter(prefix="/api/parameters", tags=["parameters"], dependencies=[Depends(require_auth)])
 parameter_crud = ParameterCRUD()
 
 

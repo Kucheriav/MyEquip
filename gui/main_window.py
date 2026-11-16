@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.create_categories_tab(), "Категории")
         self.tabs.addTab(self.create_items_tab(), "Снаряжение")
         self.tabs.addTab(self.create_distributions_tab(), "Выдачи")
+        self.tabs.addTab(self.create_transfers_tab(), "Перемещения")
         self.tabs.addTab(self.create_breakdowns_tab(), "Поломки")
 
         central_widget.setLayout(main_layout)
@@ -732,6 +733,189 @@ class MainWindow(QMainWindow):
                 self.load_distributions()
             else:
                 QMessageBox.warning(self, "Ошибка", "Ошибка при возврате")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка подключения", str(e))
+
+    # ==================== TRANSFERS TAB ====================
+    def create_transfers_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        # Form to transfer item between storages
+        form_group = self.create_form_group("Переместить снаряжение")
+        form = form_group.layout()
+
+        self.transfer_item_combo = QComboBox()
+        self.transfer_item_combo.currentIndexChanged.connect(self.on_transfer_item_selected)
+        form.addRow("Предмет:", self.transfer_item_combo)
+
+        self.transfer_from_label = QLabel("—")
+        form.addRow("Со склада:", self.transfer_from_label)
+
+        self.transfer_to_combo = QComboBox()
+        form.addRow("На склад:", self.transfer_to_combo)
+
+        self.transfer_mover_combo = QComboBox()
+        form.addRow("Передающий:", self.transfer_mover_combo)
+
+        self.transfer_comment_input = QLineEdit()
+        self.transfer_comment_input.setPlaceholderText("Комментарий (опционально)")
+        form.addRow("Комментарий:", self.transfer_comment_input)
+
+        transfer_btn = QPushButton("Переместить")
+        transfer_btn.clicked.connect(self.make_transfer)
+        form.addRow(transfer_btn)
+
+        layout.addWidget(form_group)
+
+        # Table
+        self.transfers_table = QTableWidget()
+        self.transfers_table.setColumnCount(6)
+        self.transfers_table.setHorizontalHeaderLabels(
+            ["ID", "Предмет", "Откуда", "Куда", "Дата", "Комментарий"]
+        )
+        layout.addWidget(QLabel("История перемещений:"))
+        layout.addWidget(self.transfers_table)
+
+        refresh_btn = QPushButton("Обновить")
+        refresh_btn.clicked.connect(self.load_transfers_data)
+        layout.addWidget(refresh_btn)
+
+        widget.setLayout(layout)
+        self.load_transfers_data()
+        return widget
+
+    def load_transfers_data(self):
+        self.load_transfer_combos()
+        self.load_transfers()
+
+    def load_transfer_combos(self):
+        # Items
+        try:
+            response = requests.get(f"{API_URL}/items")
+            items = response.json()
+            self.transfer_item_combo.blockSignals(True)
+            self.transfer_item_combo.clear()
+            for item in items:
+                self.transfer_item_combo.addItem(item["name"], item["id"])
+            self.transfer_item_combo.blockSignals(False)
+        except:
+            pass
+        # Users (mover)
+        try:
+            response = requests.get(f"{API_URL}/users")
+            users = response.json()
+            self.transfer_mover_combo.clear()
+            for user in users:
+                self.transfer_mover_combo.addItem(f"{user['surname']} {user['name']}", user["id"])
+        except:
+            pass
+        # Destination storages
+        try:
+            response = requests.get(f"{API_URL}/storages")
+            storages = response.json()
+            self.transfer_to_combo.clear()
+            for storage in storages:
+                self.transfer_to_combo.addItem(storage["name"], storage["id"])
+        except:
+            pass
+        self.on_transfer_item_selected()
+
+    def on_transfer_item_selected(self):
+        item_id = self.transfer_item_combo.currentData()
+        if not item_id:
+            self.transfer_from_label.setText("—")
+            return
+        try:
+            response = requests.get(f"{API_URL}/items/{item_id}")
+            item = response.json()
+            storage_id = item.get("storage_id")
+            storage_name = ""
+            if storage_id:
+                try:
+                    storage_resp = requests.get(f"{API_URL}/storages/{storage_id}")
+                    storage_name = storage_resp.json().get("name", "")
+                except:
+                    pass
+            self.transfer_from_label.setText(f"{storage_name} (id {storage_id})")
+        except:
+            self.transfer_from_label.setText("—")
+
+    def make_transfer(self):
+        item_id = self.transfer_item_combo.currentData()
+        mover_id = self.transfer_mover_combo.currentData()
+        to_storage_id = self.transfer_to_combo.currentData()
+        comment = self.transfer_comment_input.text().strip()
+
+        if not all([item_id, to_storage_id]):
+            QMessageBox.warning(self, "Ошибка", "Выберите предмет и склад назначения")
+            return
+
+        # Source storage is the item's current storage
+        try:
+            item_resp = requests.get(f"{API_URL}/items/{item_id}")
+            item = item_resp.json()
+            from_storage_id = item.get("storage_id")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка подключения", str(e))
+            return
+
+        if not from_storage_id:
+            QMessageBox.warning(self, "Ошибка", "Не удалось определить текущий склад предмета")
+            return
+        if from_storage_id == to_storage_id:
+            QMessageBox.warning(self, "Ошибка", "Предмет уже находится на этом складе")
+            return
+
+        try:
+            data = {
+                "item_id": item_id,
+                "from_storage_id": from_storage_id,
+                "to_storage_id": to_storage_id,
+                "date": QDate.currentDate().toString("yyyy-MM-dd"),
+            }
+            if mover_id:
+                data["mover_id"] = mover_id
+            if comment:
+                data["comment"] = comment
+
+            response = requests.post(f"{API_URL}/transfers", json=data)
+            if response.status_code == 201:
+                QMessageBox.information(self, "Успех", "Предмет перемещён")
+                self.transfer_comment_input.clear()
+                self.load_transfers_data()
+            else:
+                QMessageBox.warning(self, "Ошибка", response.json().get("detail", "Ошибка"))
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка подключения", str(e))
+
+    def load_transfers(self):
+        try:
+            response = requests.get(f"{API_URL}/transfers")
+            transfers = response.json()
+            self.transfers_table.setRowCount(len(transfers))
+
+            for row, transfer in enumerate(transfers):
+                self.transfers_table.setItem(row, 0, QTableWidgetItem(str(transfer["id"])))
+
+                item_name = ""
+                try:
+                    item_name = requests.get(f"{API_URL}/items/{transfer['item_id']}").json().get("name", "")
+                except:
+                    pass
+                self.transfers_table.setItem(row, 1, QTableWidgetItem(item_name))
+
+                from_name = to_name = ""
+                try:
+                    from_name = requests.get(f"{API_URL}/storages/{transfer['from_storage_id']}").json().get("name", "")
+                    to_name = requests.get(f"{API_URL}/storages/{transfer['to_storage_id']}").json().get("name", "")
+                except:
+                    pass
+                self.transfers_table.setItem(row, 2, QTableWidgetItem(from_name))
+                self.transfers_table.setItem(row, 3, QTableWidgetItem(to_name))
+
+                self.transfers_table.setItem(row, 4, QTableWidgetItem(transfer.get("date", "")))
+                self.transfers_table.setItem(row, 5, QTableWidgetItem(transfer.get("comment") or ""))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))
 

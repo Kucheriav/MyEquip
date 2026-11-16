@@ -24,4 +24,5 @@ class Item(Base):
     owner = relationship("User", back_populates="items")
     distributions = relationship("Distribution", back_populates="item")
     breakdowns = relationship("Breakdown", back_populates="item")
+    transfers = relationship("Transfer", back_populates="item")
     parameters = relationship("ItemParameterValue", back_populates="item")

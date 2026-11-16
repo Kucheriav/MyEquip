@@ -8,6 +8,7 @@ from app.crud.item_crud import ItemCRUD
 from app.crud.distribution_crud import DistributionCRUD
 from app.crud.breakdown_crud import BreakdownCRUD
 from app.crud.item_parameter_value_crud import ItemParameterValueCRUD
+from app.crud.transfer_crud import TransferCRUD
 
 __all__ = [
     "UserCRUD",
@@ -20,4 +21,5 @@ __all__ = [
     "DistributionCRUD",
     "BreakdownCRUD",
     "ItemParameterValueCRUD",
+    "TransferCRUD",
 ]
