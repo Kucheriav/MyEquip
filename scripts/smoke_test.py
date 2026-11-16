@@ -130,16 +130,46 @@ distribution = check(
     201,
 )
 distribution_id = distribution["id"]
+check("item status after issue", requests.get(f"{BASE_URL}/items/{item_id}"))  # asserted below
+issued_item = requests.get(f"{BASE_URL}/items/{item_id}").json()
+if issued_item["status"] == "issued":
+    print("PASS  item status is 'issued' after issue")
+else:
+    print(f"FAIL  item status is '{issued_item['status']}' after issue (expected 'issued')")
+    failures.append("item status after issue")
 
-# 9. Distribution: return
+# 8a. Cannot issue the same item twice
+double_issue = requests.post(f"{BASE_URL}/distributions/", json={
+    "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+    "date": today.isoformat(), "status": "issued",
+})
+if double_issue.status_code == 400:
+    print("PASS  double issue rejected with 400")
+else:
+    print(f"FAIL  double issue: {double_issue.status_code} (expected 400)")
+    failures.append("double issue")
+
+# 9. Distribution: return via the dedicated endpoint
 check(
-    "return item",
-    requests.put(f"{BASE_URL}/distributions/{distribution_id}", json={
-        "status": "returned", "accepter_id": user_id,
-        "accepting_date": today.isoformat(),
+    "return item (POST /return)",
+    requests.post(f"{BASE_URL}/distributions/{distribution_id}/return", json={
+        "accepter_id": user_id, "accepting_date": today.isoformat(),
     }),
     200,
 )
+returned_item = requests.get(f"{BASE_URL}/items/{item_id}").json()
+if returned_item["status"] == "available":
+    print("PASS  item status is 'available' after return")
+else:
+    print(f"FAIL  item status is '{returned_item['status']}' after return (expected 'available')")
+    failures.append("item status after return")
+# 9a. Double return is rejected
+double_return = requests.post(f"{BASE_URL}/distributions/{distribution_id}/return", json={})
+if double_return.status_code == 400:
+    print("PASS  double return rejected with 400")
+else:
+    print(f"FAIL  double return: {double_return.status_code} (expected 400)")
+    failures.append("double return")
 
 # 10. Breakdown: report
 breakdown = check(
@@ -151,15 +181,27 @@ breakdown = check(
     201,
 )
 breakdown_id = breakdown["id"]
+maintenance_item = requests.get(f"{BASE_URL}/items/{item_id}").json()
+if maintenance_item["status"] == "maintenance":
+    print("PASS  item status is 'maintenance' after breakdown")
+else:
+    print(f"FAIL  item status is '{maintenance_item['status']}' after breakdown (expected 'maintenance')")
+    failures.append("item status after breakdown")
 
-# 11. Breakdown: mark repaired
+# 11. Breakdown: mark repaired via the dedicated endpoint
 check(
-    "mark repaired",
-    requests.put(f"{BASE_URL}/breakdowns/{breakdown_id}", json={
-        "repaired_date": today.isoformat(), "repairer_id": user_id,
+    "mark repaired (POST /repair)",
+    requests.post(f"{BASE_URL}/breakdowns/{breakdown_id}/repair", json={
+        "repairer_id": user_id, "repaired_date": today.isoformat(),
     }),
     200,
 )
+repaired_item = requests.get(f"{BASE_URL}/items/{item_id}").json()
+if repaired_item["status"] == "available":
+    print("PASS  item status is 'available' after repair")
+else:
+    print(f"FAIL  item status is '{repaired_item['status']}' after repair (expected 'available')")
+    failures.append("item status after repair")
 
 # 12. Reads back
 check("get item", requests.get(f"{BASE_URL}/items/{item_id}"))

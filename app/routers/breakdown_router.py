@@ -1,20 +1,39 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from datetime import date
+from typing import Optional
+
 from app.database import get_db
 from app.crud import BreakdownCRUD
 from app.schemas.breakdown_schema import (
     BreakdownCreate, BreakdownUpdate, BreakdownResponse
 )
+from app.services import breakdown_service, BusinessRuleError
 from typing import List
 
 router = APIRouter(prefix="/api/breakdowns", tags=["breakdowns"])
 breakdown_crud = BreakdownCRUD()
 
 
+class BreakdownRepairRequest(BaseModel):
+    repairer_id: Optional[int] = None
+    repaired_date: Optional[date] = None
+
+
+def _handle_business_rule(e: BusinessRuleError):
+    message = str(e)
+    status = 404 if "not found" in message.lower() else 400
+    raise HTTPException(status_code=status, detail=message)
+
+
 @router.post("/", response_model=BreakdownResponse, status_code=201)
 def create_breakdown(breakdown: BreakdownCreate, db: Session = Depends(get_db)):
-    """Report equipment breakdown"""
-    return breakdown_crud.create(db, obj_in=breakdown)
+    """Report equipment breakdown (sets item status to 'maintenance')"""
+    try:
+        return breakdown_service.create_breakdown(db, data=breakdown)
+    except BusinessRuleError as e:
+        _handle_business_rule(e)
 
 
 @router.get("/{breakdown_id}", response_model=BreakdownResponse)
@@ -50,16 +69,28 @@ def update_breakdown(
     breakdown_update: BreakdownUpdate,
     db: Session = Depends(get_db)
 ):
-    """Update breakdown (e.g., mark as repaired)"""
-    db_breakdown = breakdown_crud.get(db, breakdown_id)
-    if not db_breakdown:
-        raise HTTPException(status_code=404, detail="Breakdown not found")
-    return breakdown_crud.update(db, db_obj=db_breakdown, obj_in=breakdown_update)
+    """Update breakdown (syncs the item status when it is repaired)"""
+    try:
+        return breakdown_service.update_breakdown(
+            db, breakdown_id=breakdown_id, data=breakdown_update
+        )
+    except BusinessRuleError as e:
+        _handle_business_rule(e)
 
 
-@router.delete("/{breakdown_id}", status_code=204)
-def delete_breakdown(breakdown_id: int, db: Session = Depends(get_db)):
-    """Delete breakdown record"""
-    if not breakdown_crud.delete(db, breakdown_id):
-        raise HTTPException(status_code=404, detail="Breakdown not found")
-    return None
+@router.post("/{breakdown_id}/repair", response_model=BreakdownResponse)
+def repair_breakdown(
+    breakdown_id: int,
+    request: BreakdownRepairRequest,
+    db: Session = Depends(get_db),
+):
+    """Mark a breakdown as repaired (item returns to 'available' when no open breakdowns remain)"""
+    try:
+        return breakdown_service.repair_breakdown(
+            db,
+            breakdown_id=breakdown_id,
+            repairer_id=request.repairer_id,
+            repaired_date=request.repaired_date or date.today(),
+        )
+    except BusinessRuleError as e:
+        _handle_business_rule(e)

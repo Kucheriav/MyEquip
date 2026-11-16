@@ -15,6 +15,12 @@ def create_value(value: ValueCreate, db: Session = Depends(get_db)):
     return value_crud.create(db, obj_in=value)
 
 
+@router.get("/", response_model=List[ValueResponse])
+def get_all_values(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Get all values"""
+    return value_crud.get_all(db, skip=skip, limit=limit)
+
+
 @router.get("/{value_id}", response_model=ValueResponse)
 def get_value(value_id: int, db: Session = Depends(get_db)):
     """Get value by ID"""

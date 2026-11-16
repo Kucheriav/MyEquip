@@ -20,6 +20,12 @@ def create_item_parameter(
     return item_param_crud.create(db, obj_in=item_param)
 
 
+@router.get("/", response_model=List[ItemParameterValueResponse])
+def get_all_item_parameters(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Get all item parameter values"""
+    return item_param_crud.get_all(db, skip=skip, limit=limit)
+
+
 @router.get("/{item_param_id}", response_model=ItemParameterValueResponse)
 def get_item_parameter(item_param_id: int, db: Session = Depends(get_db)):
     """Get item parameter by ID"""
