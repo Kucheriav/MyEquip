@@ -2,3 +2,9 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
+pydantic-settings
+email-validator
+pymysql
+cryptography
+requests
+PyQt6

@@ -8,7 +8,7 @@ class Parameter(Base):
     __tablename__ = "parameters"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
+    name = Column(String(100), nullable=False)
     param_type = Column(
         Enum('int', 'bool', 'str', 'float', name="param_type_enum"),
         nullable=False,

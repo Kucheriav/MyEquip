@@ -1,22 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import logging
-
-
-logger = logging.getLogger(__name__)
-logger.info("FastAPI starting...")
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
-)
-
-
-models.Base.metadata.create_all(bind=database.engine)
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from app.database import create_all_tables
 from app.routers import (
     user_router, club_router, category_router, parameter_router,
@@ -31,7 +14,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Add CORS middleware (any local client: PyQt GUI, future web frontend)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

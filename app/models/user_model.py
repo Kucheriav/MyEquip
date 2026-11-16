@@ -7,13 +7,13 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    surname = Column(String, nullable=False)
-    last_name = Column(String)
+    name = Column(String(100), nullable=False)
+    surname = Column(String(100), nullable=False)
+    last_name = Column(String(100))
     date_of_birth = Column(Date)
-    email = Column(String, unique=True, index=True)  # FIXED: Changed from Email to String
-    phone = Column(String, unique=True)
-    pswd_hash = Column(String)
+    email = Column(String(120), unique=True, index=True)  # FIXED: Changed from Email to String
+    phone = Column(String(20), unique=True)
+    pswd_hash = Column(String(128))
     status = Column(Enum('guest', 'unverified', 'full', name="user_status_enum"),
                     nullable=False, default='guest')
 

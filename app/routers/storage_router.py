@@ -15,6 +15,12 @@ def create_storage(storage: StorageCreate, db: Session = Depends(get_db)):
     return storage_crud.create(db, obj_in=storage)
 
 
+@router.get("/", response_model=List[StorageResponse])
+def get_all_storages(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Get all storages"""
+    return storage_crud.get_all(db, skip=skip, limit=limit)
+
+
 @router.get("/{storage_id}", response_model=StorageResponse)
 def get_storage(storage_id: int, db: Session = Depends(get_db)):
     """Get storage by ID"""

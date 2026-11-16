@@ -7,7 +7,7 @@ class Value(Base):
     __tablename__ = "values"
 
     id = Column(Integer, primary_key=True, index=True)
-    value = Column(String, nullable=False)
+    value = Column(String(100), nullable=False)
     parameter_id = Column(Integer, ForeignKey('parameters.id'), nullable=False)
 
     # Relationships

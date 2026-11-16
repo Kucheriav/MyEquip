@@ -10,7 +10,7 @@ class ItemParameterValue(Base):
     item_id = Column(Integer, ForeignKey('items.id'), nullable=False)
     parameter_id = Column(Integer, ForeignKey('parameters.id'), nullable=False)
     value_id = Column(Integer, ForeignKey('values.id'), nullable=True)
-    custom_value = Column(String, nullable=True)  # For custom values not in predefined list
+    custom_value = Column(String(200), nullable=True)  # For custom values not in predefined list
 
     # Relationships
     item = relationship("Item", back_populates="parameters")

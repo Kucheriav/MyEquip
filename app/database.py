@@ -1,28 +1,39 @@
 import logging
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import config
 
 
 logger = logging.getLogger("app.database")
-DATABASE_URL =  config.get_db_url()
-logger.info(f"Initializing database engine with URL: {DATABASE_URL}")
-engine = create_async_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-AsyncSessionMaker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+DATABASE_URL = config.get_db_url()
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=3600)
+
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
 Base = declarative_base()
 
 
-def connection(method):
-    async def wrapper(*args, **kwargs):
-        logger.info(f"Opening a new database session for method: {method.__name__}")
-        async with AsyncSessionMaker() as session:
-            try:
-                result = await method(*args, session=session, **kwargs)
-                logger.info(f"Method {method.__name__} completed successfully")
-                return result
-            finally:
-                logger.info(f"Database session for method {method.__name__} closed")
+def get_db():
+    """FastAPI dependency: yields a database session, commits on success
+    and rolls back on error."""
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
-    return wrapper
+
+def create_all_tables():
+    """Create all tables declared by app.models (no-op if they exist)."""
+    # Import models so that all tables are registered on Base.metadata
+    import app.models  # noqa: F401
+
+    logger.info("Creating database tables (if missing)...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables are ready")

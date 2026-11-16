@@ -7,7 +7,7 @@ class Item(Base):
     __tablename__ = "items"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, index=True)
+    name = Column(String(100), nullable=False, index=True)
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=False)
     storage_id = Column(Integer, ForeignKey('storages.id'), nullable=False)
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
@@ -16,7 +16,7 @@ class Item(Base):
         default='available',
         nullable=False
     )
-    serial_number = Column(String, unique=True, nullable=True)
+    serial_number = Column(String(100), unique=True, nullable=True)
 
     # Relationships
     category = relationship("Category", back_populates="items")

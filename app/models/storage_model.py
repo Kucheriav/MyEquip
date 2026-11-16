@@ -7,8 +7,8 @@ class Storage(Base):
     __tablename__ = "storages"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    address = Column(String)
+    name = Column(String(100), nullable=False)
+    address = Column(String(200))
     club_id = Column(Integer, ForeignKey('clubs.id'), nullable=False)
 
     # Relationships

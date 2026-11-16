@@ -8,7 +8,7 @@ class Category(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
-    title = Column(String, nullable=False)
+    title = Column(String(100), nullable=False)
     club_id = Column(Integer, ForeignKey('clubs.id'), nullable=False)
 
     # Relationships

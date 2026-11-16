@@ -8,7 +8,7 @@ class Breakdown(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     item_id = Column(Integer, ForeignKey('items.id'), nullable=False)
-    comment = Column(String, nullable=False)
+    comment = Column(String(500), nullable=False)
     date = Column(Date, nullable=False)
     repaired_date = Column(Date, nullable=True)
     repairer_id = Column(Integer, ForeignKey('users.id'), nullable=True)
