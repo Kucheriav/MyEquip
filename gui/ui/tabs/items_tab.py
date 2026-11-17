@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox
+    QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox,
+    QComboBox, QGroupBox, QFormLayout, QSpinBox, QCheckBox
 )
+from PyQt6.QtGui import QDoubleValidator
 from gui.api.client import APIClient
 from . import BaseTab
 
@@ -19,6 +21,8 @@ class ItemsTab(BaseTab):
         form.addRow("Название:", self.item_name_input)
 
         self.item_category_combo = QComboBox()
+        # Dynamic property fields below are rebuilt when the category changes
+        self.item_category_combo.currentIndexChanged.connect(self.load_category_fields)
         form.addRow("Категория:", self.item_category_combo)
 
         self.item_storage_combo = QComboBox()
@@ -34,6 +38,12 @@ class ItemsTab(BaseTab):
         self.item_status_combo = QComboBox()
         self.item_status_combo.addItems(["available", "issued", "maintenance", "lost"])
         form.addRow("Статус:", self.item_status_combo)
+
+        # ---------- dynamic per-category property fields ----------
+        self.item_params_group = QGroupBox("Свойства категории")
+        self.item_params_form = QFormLayout(self.item_params_group)
+        form.addRow(self.item_params_group)
+        self._param_fields = []  # [(parameter, widget, kind)]
 
         add_item_btn = QPushButton("Добавить предмет")
         add_item_btn.clicked.connect(self.add_item)
@@ -72,9 +82,12 @@ class ItemsTab(BaseTab):
         try:
             response = APIClient.get("/categories")
             categories = response.json()
+            self.item_category_combo.blockSignals(True)
             self.item_category_combo.clear()
             for category in categories:
                 self.item_category_combo.addItem(category["title"], category["id"])
+            self.item_category_combo.blockSignals(False)
+            self.load_category_fields()
         except:
             pass
 
@@ -99,6 +112,65 @@ class ItemsTab(BaseTab):
         except:
             pass
 
+    # ---------- dynamic per-category fields ----------
+    def load_category_fields(self):
+        """Rebuild the property input rows from the category's parameter
+        set (inherited ones included). A parameter with predefined value
+        variants becomes a dropdown, otherwise the widget follows its type."""
+        # clear old rows
+        while self.item_params_form.rowCount():
+            self.item_params_form.removeRow(0)
+        self._param_fields = []
+
+        category_id = self.item_category_combo.currentData()
+        if category_id is None:
+            self.item_params_group.setVisible(False)
+            return
+
+        try:
+            response = APIClient.get(f"/categories/{category_id}/parameters")
+            parameters = response.json()
+        except Exception:
+            self.item_params_group.setVisible(False)
+            return
+
+        for parameter in parameters:
+            label = parameter["name"] + (" (от родителя)" if parameter.get("inherited") else "")
+            values = []
+            try:
+                values = APIClient.get(f"/values/parameter/{parameter['id']}").json()
+            except Exception:
+                pass
+
+            if values:
+                # Predefined variants -> dropdown, save as value_id
+                widget = QComboBox()
+                for variant in values:
+                    widget.addItem(str(variant["value"]), variant["id"])
+                kind = "select"
+            elif parameter["param_type"] == "bool":
+                widget = QCheckBox("да")
+                kind = "bool"
+            elif parameter["param_type"] == "int":
+                widget = QSpinBox()
+                widget.setRange(-999999, 999999)
+                widget.setSpecialValueText("—")
+                kind = "int"
+            elif parameter["param_type"] == "float":
+                widget = QLineEdit()
+                widget.setPlaceholderText("число, напр. 12.5")
+                widget.setValidator(QDoubleValidator())
+                kind = "float"
+            else:  # 'str'
+                widget = QLineEdit()
+                kind = "str"
+
+            self.item_params_form.addRow(label, widget)
+            self._param_fields.append((parameter, widget, kind))
+
+        self.item_params_group.setVisible(bool(self._param_fields))
+
+    # ---------- create ----------
     def add_item(self):
         name = self.item_name_input.text().strip()
         category_id = self.item_category_combo.currentData()
@@ -124,7 +196,9 @@ class ItemsTab(BaseTab):
 
             response = APIClient.post("/items", data)
             if response.status_code == 201:
-                QMessageBox.information(self, "Успех", "Снаряжени�� добавлено")
+                item = response.json()
+                self.save_item_parameters(item["id"])
+                QMessageBox.information(self, "Успех", "Снаряжение добавлено")
                 self.item_name_input.clear()
                 self.item_serial_input.clear()
                 self.load_items()
@@ -132,6 +206,35 @@ class ItemsTab(BaseTab):
                 QMessageBox.warning(self, "Ошибка", response.json().get("detail", "Ошибка"))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))
+
+    def save_item_parameters(self, item_id: int):
+        """Store the values entered in the dynamic property rows."""
+        for parameter, widget, kind in self._param_fields:
+            payload = {"item_id": item_id, "parameter_id": parameter["id"]}
+
+            if kind == "select":
+                payload["value_id"] = widget.currentData()
+            elif kind == "bool":
+                payload["custom_value"] = "true" if widget.isChecked() else "false"
+            elif kind == "int":
+                if widget.value() == widget.minimum():  # '—' = not filled
+                    continue
+                payload["custom_value"] = str(widget.value())
+            elif kind == "float":
+                text = widget.text().strip().replace(",", ".")
+                if not text:
+                    continue
+                payload["custom_value"] = text
+            else:  # str
+                text = widget.text().strip()
+                if not text:
+                    continue
+                payload["custom_value"] = text
+
+            try:
+                APIClient.post("/item-parameters", payload)
+            except Exception:
+                pass  # one bad property must not block the item itself
 
     def load_items(self):
         try:

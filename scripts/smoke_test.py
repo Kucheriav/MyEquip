@@ -289,6 +289,91 @@ check(
     201,
 )
 
+# 5.7b Category parameters: attach, duplicates, inheritance, free-input value
+attach_resp = requests.post(
+    f"{BASE_URL}/categories/{category_id}/parameters", headers=auth,
+    json={"parameter_id": parameter_id},
+)
+expect("attach parameter to category", attach_resp.status_code == 201, attach_resp.status_code)
+
+dup_attach = requests.post(
+    f"{BASE_URL}/categories/{category_id}/parameters", headers=auth,
+    json={"parameter_id": parameter_id},
+)
+expect("double attach rejected with 400", dup_attach.status_code == 400, dup_attach.status_code)
+
+own_params = requests.get(
+    f"{BASE_URL}/categories/{category_id}/parameters", headers=auth).json()
+expect(
+    "own category parameter listed as not inherited",
+    any(p["id"] == parameter_id and not p["inherited"] for p in own_params),
+    own_params,
+)
+
+child_category = check(
+    "create child category",
+    requests.post(f"{BASE_URL}/categories/", headers=auth, json={
+        "title": "Зимние палатки", "club_id": club_id, "parent_id": category_id,
+    }),
+    201,
+)
+child_category_id = child_category["id"]
+
+child_params_all = requests.get(
+    f"{BASE_URL}/categories/{child_category_id}/parameters?include_inherited=true", headers=auth).json()
+expect(
+    "child inherits parent's parameter (inherited=True)",
+    any(p["id"] == parameter_id and p["inherited"] for p in child_params_all),
+    child_params_all,
+)
+
+child_params_own = requests.get(
+    f"{BASE_URL}/categories/{child_category_id}/parameters?include_inherited=false", headers=auth).json()
+expect(
+    "child's own-only list excludes inherited parameter",
+    all(p["id"] != parameter_id for p in child_params_own),
+    child_params_own,
+)
+
+# Free-input value on an item of the child category
+child_item = check(
+    "create item in child category",
+    requests.post(f"{BASE_URL}/items/", headers=auth, json={
+        "name": "Зимняя палатка", "category_id": child_category_id,
+        "storage_id": storage_id, "owner_id": user_id, "status": "available",
+    }),
+    201,
+)
+free_value = check(
+    "store free-input parameter value on item",
+    requests.post(f"{BASE_URL}/item-parameters/", headers=auth, json={
+        "item_id": child_item["id"], "parameter_id": parameter_id,
+        "value_id": None, "custom_value": "6",
+    }),
+    201,
+)
+item_values = requests.get(
+    f"{BASE_URL}/item-parameters/item/{child_item['id']}", headers=auth).json()
+expect(
+    "item parameter value readable back",
+    any(v["parameter_id"] == parameter_id and v["custom_value"] == "6" for v in item_values),
+    item_values,
+)
+requests.delete(f"{BASE_URL}/item-parameters/{free_value['id']}", headers=auth)
+requests.delete(f"{BASE_URL}/items/{child_item['id']}", headers=auth)
+
+detach_resp = requests.delete(
+    f"{BASE_URL}/categories/{category_id}/parameters/{parameter_id}", headers=auth)
+expect("detach parameter from category", detach_resp.status_code == 204, detach_resp.status_code)
+re_params = requests.get(
+    f"{BASE_URL}/categories/{child_category_id}/parameters?include_inherited=true", headers=auth).json()
+expect(
+    "detached parameter disappears from child's inherited set",
+    all(p["id"] != parameter_id for p in re_params),
+    re_params,
+)
+requests.delete(f"{BASE_URL}/categories/{child_category_id}", headers=auth)
+
 # 5.8 Distribution: issue
 distribution = check(
     "issue item",
