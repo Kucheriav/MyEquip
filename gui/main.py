@@ -3,8 +3,15 @@ from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QMessageBox, QFormLayout, QWidget, QStackedWidget,
 )
-from ui.main_window import MainWindow
-from api.client import APIClient
+
+try:
+    # normal case: running with the project root on sys.path (PyCharm / cwd=root)
+    from gui.api.client import APIClient
+    from gui.ui.main_window import MainWindow
+except ImportError:
+    # fallback: running from inside the gui/ directory
+    from api.client import APIClient
+    from ui.main_window import MainWindow
 
 
 def except_hook(cls, exception, traceback):
