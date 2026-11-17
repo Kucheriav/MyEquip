@@ -22,4 +22,10 @@ class Parameter(Base):
         secondary="category_parameter",
         back_populates="parameters"
     )
-    item_values = relationship("ItemParameterValue", back_populates="parameter")
+    # delete-orphan: removing a parameter removes its per-item values
+    # (parameter_id is NOT NULL)
+    item_values = relationship(
+        "ItemParameterValue",
+        back_populates="parameter",
+        cascade="all, delete-orphan",
+    )

@@ -25,4 +25,10 @@ class Item(Base):
     distributions = relationship("Distribution", back_populates="item")
     breakdowns = relationship("Breakdown", back_populates="item")
     transfers = relationship("Transfer", back_populates="item")
-    parameters = relationship("ItemParameterValue", back_populates="item")
+    # delete-orphan: removing an item removes its parameter values,
+    # not NULL-updates them (item_id is NOT NULL)
+    parameters = relationship(
+        "ItemParameterValue",
+        back_populates="item",
+        cascade="all, delete-orphan",
+    )
