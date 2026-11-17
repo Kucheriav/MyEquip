@@ -9,8 +9,6 @@ class CategoriesTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_clubs_combo()
-        self.load_categories()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить категорию")
@@ -55,7 +53,10 @@ class CategoriesTab(BaseTab):
             pass
 
     def refresh_combos(self):
-        """A club or category may have been added in another tab."""
+        """A club may have been added in the Clubs tab since last visit."""
+        self.load_clubs_combo()
+
+    def load_data(self):
         self.load_clubs_combo()
         self.load_categories()
 
@@ -89,6 +90,11 @@ class CategoriesTab(BaseTab):
             categories = response.json()
             self.categories_table.setRowCount(len(categories))
 
+            # One request for clubs instead of one per table row
+            club_names = self.fetch_lookup("/clubs", "id", lambda c: c["name"])
+            # Parent names come from the same list we already have
+            parent_names = {c["id"]: c["title"] for c in categories}
+
             # Reload parent combo
             self.category_parent_combo.clear()
             self.category_parent_combo.addItem("Нет", None)
@@ -96,22 +102,11 @@ class CategoriesTab(BaseTab):
             for row, category in enumerate(categories):
                 self.categories_table.setItem(row, 0, QTableWidgetItem(str(category["id"])))
                 self.categories_table.setItem(row, 1, QTableWidgetItem(category["title"]))
+                self.categories_table.setItem(
+                    row, 2, QTableWidgetItem(club_names.get(category["club_id"], "")))
 
-                # Get club name
-                try:
-                    club_resp = APIClient.get(f"/clubs/{category['club_id']}")
-                    club_name = club_resp.json().get("name", "")
-                    self.categories_table.setItem(row, 2, QTableWidgetItem(club_name))
-                except:
-                    self.categories_table.setItem(row, 2, QTableWidgetItem(""))
-
-                parent_name = ""
-                if category.get("parent_id"):
-                    try:
-                        parent_resp = APIClient.get(f"/categories/{category['parent_id']}")
-                        parent_name = parent_resp.json().get("title", "")
-                    except:
-                        pass
+                parent_name = parent_names.get(category.get("parent_id"), "") \
+                    if category.get("parent_id") else ""
 
                 self.categories_table.setItem(row, 3, QTableWidgetItem(parent_name))
                 self.category_parent_combo.addItem(category["title"], category["id"])

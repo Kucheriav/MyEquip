@@ -9,7 +9,6 @@ class UsersTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_users()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить пользователя")
@@ -60,6 +59,9 @@ class UsersTab(BaseTab):
         refresh_btn = QPushButton("Обновить")
         refresh_btn.clicked.connect(self.load_users)
         self.layout.addWidget(refresh_btn)
+
+    def load_data(self):
+        self.load_users()
 
     def add_user(self):
         import hashlib

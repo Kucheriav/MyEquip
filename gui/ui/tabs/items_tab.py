@@ -9,7 +9,6 @@ class ItemsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_items_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить снаряжение")
@@ -59,6 +58,9 @@ class ItemsTab(BaseTab):
         self.load_storages_combo()
         self.load_users_combo()
         self.load_items()
+
+    def load_data(self):
+        self.load_items_data()
 
     def refresh_combos(self):
         """Categories, storages and users may have changed in other tabs."""
@@ -133,6 +135,11 @@ class ItemsTab(BaseTab):
 
     def load_items(self):
         try:
+            # One request per entity instead of one per table row
+            cat_names = self.fetch_lookup("/categories", "id", lambda c: c["title"])
+            stor_names = self.fetch_lookup("/storages", "id", lambda s: s["name"])
+            user_names = self.fetch_lookup("/users", "id", lambda u: f"{u['surname']} {u['name']}")
+
             response = APIClient.get(f"/items")
             items = response.json()
             self.items_table.setRowCount(len(items))
@@ -140,31 +147,12 @@ class ItemsTab(BaseTab):
             for row, item in enumerate(items):
                 self.items_table.setItem(row, 0, QTableWidgetItem(str(item["id"])))
                 self.items_table.setItem(row, 1, QTableWidgetItem(item["name"]))
-
-                # Get category name
-                try:
-                    cat_resp = APIClient.get(f"/categories/{item['category_id']}")
-                    cat_name = cat_resp.json().get("title", "")
-                    self.items_table.setItem(row, 2, QTableWidgetItem(cat_name))
-                except:
-                    self.items_table.setItem(row, 2, QTableWidgetItem(""))
-
-                # Get storage name
-                try:
-                    stor_resp = APIClient.get(f"/storages/{item['storage_id']}")
-                    stor_name = stor_resp.json().get("name", "")
-                    self.items_table.setItem(row, 3, QTableWidgetItem(stor_name))
-                except:
-                    self.items_table.setItem(row, 3, QTableWidgetItem(""))
-
-                # Get owner name
-                try:
-                    owner_resp = APIClient.get(f"/users/{item['owner_id']}")
-                    owner_data = owner_resp.json()
-                    owner_name = f"{owner_data['surname']} {owner_data['name']}"
-                    self.items_table.setItem(row, 4, QTableWidgetItem(owner_name))
-                except:
-                    self.items_table.setItem(row, 4, QTableWidgetItem(""))
+                self.items_table.setItem(
+                    row, 2, QTableWidgetItem(cat_names.get(item["category_id"], "")))
+                self.items_table.setItem(
+                    row, 3, QTableWidgetItem(stor_names.get(item["storage_id"], "")))
+                self.items_table.setItem(
+                    row, 4, QTableWidgetItem(user_names.get(item["owner_id"], "")))
 
                 self.items_table.setItem(row, 5, QTableWidgetItem(item.get("status", "")))
                 self.items_table.setItem(row, 6, QTableWidgetItem(item.get("serial_number", "")))

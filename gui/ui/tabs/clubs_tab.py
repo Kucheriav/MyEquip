@@ -9,7 +9,6 @@ class ClubsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_clubs()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить клуб")
@@ -34,6 +33,9 @@ class ClubsTab(BaseTab):
         refresh_btn = QPushButton("Обновить")
         refresh_btn.clicked.connect(self.load_clubs)
         self.layout.addWidget(refresh_btn)
+
+    def load_data(self):
+        self.load_clubs()
 
     def add_club(self):
         name = self.club_name_input.text().strip()

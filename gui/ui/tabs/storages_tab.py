@@ -9,8 +9,6 @@ class StoragesTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_clubs_combo()
-        self.load_storages()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить склад")
@@ -57,6 +55,10 @@ class StoragesTab(BaseTab):
         """A club may have been added in the Clubs tab since last visit."""
         self.load_clubs_combo()
 
+    def load_data(self):
+        self.load_clubs_combo()
+        self.load_storages()
+
     def add_storage(self):
         name = self.storage_name_input.text().strip()
         address = self.storage_address_input.text().strip()
@@ -79,6 +81,9 @@ class StoragesTab(BaseTab):
 
     def load_storages(self):
         try:
+            # One request for clubs instead of one per table row
+            club_names = self.fetch_lookup("/clubs", "id", lambda c: c["name"])
+
             response = APIClient.get("/storages")
             storages = response.json()
             self.storages_table.setRowCount(len(storages))
@@ -86,13 +91,8 @@ class StoragesTab(BaseTab):
                 self.storages_table.setItem(row, 0, QTableWidgetItem(str(storage["id"])))
                 self.storages_table.setItem(row, 1, QTableWidgetItem(storage["name"]))
                 self.storages_table.setItem(row, 2, QTableWidgetItem(storage.get("address", "")))
-                # Get club name
-                try:
-                    club_resp = APIClient.get(f"/clubs/{storage['club_id']}")
-                    club_name = club_resp.json().get("name", "")
-                    self.storages_table.setItem(row, 3, QTableWidgetItem(club_name))
-                except:
-                    self.storages_table.setItem(row, 3, QTableWidgetItem(""))
+                self.storages_table.setItem(
+                    row, 3, QTableWidgetItem(club_names.get(storage["club_id"], "")))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))
 

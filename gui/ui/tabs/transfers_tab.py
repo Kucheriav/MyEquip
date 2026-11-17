@@ -10,7 +10,6 @@ class TransfersTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_transfers_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Переместить снаряжение")
@@ -63,6 +62,9 @@ class TransfersTab(BaseTab):
         self.load_items_combo()
         self.load_users_combo()
         self.load_storages_combo()
+
+    def load_data(self):
+        self.load_transfers_data()
 
     def load_items_combo(self):
         try:
@@ -167,28 +169,22 @@ class TransfersTab(BaseTab):
 
     def load_transfers(self):
         try:
+            # One request per entity instead of one per table row
+            item_names = self.fetch_lookup("/items", "id", lambda i: i["name"])
+            stor_names = self.fetch_lookup("/storages", "id", lambda s: s["name"])
+
             response = APIClient.get("/transfers")
             transfers = response.json()
             self.transfers_table.setRowCount(len(transfers))
 
             for row, transfer in enumerate(transfers):
                 self.transfers_table.setItem(row, 0, QTableWidgetItem(str(transfer["id"])))
-
-                item_name = ""
-                try:
-                    item_name = APIClient.get(f"/items/{transfer['item_id']}").json().get("name", "")
-                except:
-                    pass
-                self.transfers_table.setItem(row, 1, QTableWidgetItem(item_name))
-
-                from_name = to_name = ""
-                try:
-                    from_name = APIClient.get(f"/storages/{transfer['from_storage_id']}").json().get("name", "")
-                    to_name = APIClient.get(f"/storages/{transfer['to_storage_id']}").json().get("name", "")
-                except:
-                    pass
-                self.transfers_table.setItem(row, 2, QTableWidgetItem(from_name))
-                self.transfers_table.setItem(row, 3, QTableWidgetItem(to_name))
+                self.transfers_table.setItem(
+                    row, 1, QTableWidgetItem(item_names.get(transfer["item_id"], "")))
+                self.transfers_table.setItem(
+                    row, 2, QTableWidgetItem(stor_names.get(transfer["from_storage_id"], "")))
+                self.transfers_table.setItem(
+                    row, 3, QTableWidgetItem(stor_names.get(transfer["to_storage_id"], "")))
 
                 self.transfers_table.setItem(row, 4, QTableWidgetItem(transfer.get("date", "")))
                 self.transfers_table.setItem(row, 5, QTableWidgetItem(transfer.get("comment") or ""))

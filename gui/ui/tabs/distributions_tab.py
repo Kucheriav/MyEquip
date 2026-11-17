@@ -10,7 +10,6 @@ class DistributionsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_distributions_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Выдать снаряжение")
@@ -80,6 +79,9 @@ class DistributionsTab(BaseTab):
         except:
             pass
 
+    def load_data(self):
+        self.load_distributions_data()
+
     def refresh_combos(self):
         """Items and users may have been added in other tabs."""
         self.load_items_combo()
@@ -120,38 +122,22 @@ class DistributionsTab(BaseTab):
 
     def load_distributions(self):
         try:
+            # One request per entity instead of one per table row
+            item_names = self.fetch_lookup("/items", "id", lambda i: i["name"])
+            user_names = self.fetch_lookup("/users", "id", lambda u: f"{u['surname']} {u['name']}")
+
             response = APIClient.get("/distributions")
             distributions = response.json()
             self.distributions_table.setRowCount(len(distributions))
 
             for row, dist in enumerate(distributions):
                 self.distributions_table.setItem(row, 0, QTableWidgetItem(str(dist["id"])))
-
-                # Get item name
-                try:
-                    item_resp = APIClient.get(f"/items/{dist['item_id']}")
-                    item_name = item_resp.json().get("name", "")
-                    self.distributions_table.setItem(row, 1, QTableWidgetItem(item_name))
-                except:
-                    self.distributions_table.setItem(row, 1, QTableWidgetItem(""))
-
-                # Get giver name
-                try:
-                    giver_resp = APIClient.get(f"/users/{dist['giver_id']}")
-                    giver_data = giver_resp.json()
-                    giver_name = f"{giver_data['surname']} {giver_data['name']}"
-                    self.distributions_table.setItem(row, 2, QTableWidgetItem(giver_name))
-                except:
-                    self.distributions_table.setItem(row, 2, QTableWidgetItem(""))
-
-                # Get getter name
-                try:
-                    getter_resp = APIClient.get(f"/users/{dist['getter_id']}")
-                    getter_data = getter_resp.json()
-                    getter_name = f"{getter_data['surname']} {getter_data['name']}"
-                    self.distributions_table.setItem(row, 3, QTableWidgetItem(getter_name))
-                except:
-                    self.distributions_table.setItem(row, 3, QTableWidgetItem(""))
+                self.distributions_table.setItem(
+                    row, 1, QTableWidgetItem(item_names.get(dist["item_id"], "")))
+                self.distributions_table.setItem(
+                    row, 2, QTableWidgetItem(user_names.get(dist["giver_id"], "")))
+                self.distributions_table.setItem(
+                    row, 3, QTableWidgetItem(user_names.get(dist["getter_id"], "")))
 
                 self.distributions_table.setItem(row, 4, QTableWidgetItem(dist.get("date", "")))
                 self.distributions_table.setItem(row, 5, QTableWidgetItem(dist.get("expiration_date", "")))

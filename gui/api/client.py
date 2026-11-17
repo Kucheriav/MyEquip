@@ -1,8 +1,13 @@
 import requests
 
+# One shared session -> TCP connections are reused (keep-alive) instead of
+# opening a new connection for every single request.
+_session = requests.Session()
+
 
 class APIClient:
-    BASE_URL = "http://localhost:8000/api"
+    # 127.0.0.1 instead of 'localhost': skips the slow IPv6 lookup attempt
+    BASE_URL = "http://127.0.0.1:8000/api"
     TOKEN: str | None = None
 
     @staticmethod
@@ -13,26 +18,26 @@ class APIClient:
 
     @staticmethod
     def get(endpoint):
-        return requests.get(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
+        return _session.get(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
 
     @staticmethod
     def post(endpoint, data):
-        return requests.post(f"{APIClient.BASE_URL}{endpoint}", json=data, headers=APIClient._headers())
+        return _session.post(f"{APIClient.BASE_URL}{endpoint}", json=data, headers=APIClient._headers())
 
     @staticmethod
     def put(endpoint, data):
-        return requests.put(f"{APIClient.BASE_URL}{endpoint}", json=data, headers=APIClient._headers())
+        return _session.put(f"{APIClient.BASE_URL}{endpoint}", json=data, headers=APIClient._headers())
 
     @staticmethod
     def delete(endpoint):
-        return requests.delete(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
+        return _session.delete(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
 
     @staticmethod
     def login(login: str, password: str) -> tuple[bool, str]:
         """Authenticate against the API and store the token.
         Returns (ok, message)."""
         try:
-            response = requests.post(
+            response = _session.post(
                 f"{APIClient.BASE_URL}/auth/login",
                 json={"login": login, "password": password},
             )
@@ -49,7 +54,7 @@ class APIClient:
         """Register a leader with an invite code, then log in.
         Returns (ok, message)."""
         try:
-            response = requests.post(f"{APIClient.BASE_URL}/auth/register", json=data)
+            response = _session.post(f"{APIClient.BASE_URL}/auth/register", json=data)
             if response.status_code != 201:
                 return False, response.json().get("detail", "Ошибка регистрации")
             return APIClient.login(data["phone"], data["password"])
@@ -60,7 +65,7 @@ class APIClient:
     def is_auth_required() -> bool:
         """True when the server requires a token (GET /auth/me rejects us)."""
         try:
-            return requests.get(
+            return _session.get(
                 f"{APIClient.BASE_URL}/auth/me", headers=APIClient._headers()
             ).status_code == 401
         except Exception:

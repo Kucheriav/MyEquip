@@ -10,7 +10,6 @@ class BreakdownsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        self.load_breakdowns_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Зарегистрировать поломку")
@@ -50,6 +49,9 @@ class BreakdownsTab(BaseTab):
         self.load_items_combo()
         self.load_repairer_combo()
         self.load_breakdowns()
+
+    def load_data(self):
+        self.load_breakdowns_data()
 
     def load_items_combo(self):
         try:
@@ -113,20 +115,18 @@ class BreakdownsTab(BaseTab):
 
     def load_breakdowns(self):
         try:
+            # One request per entity instead of one per table row
+            item_names = self.fetch_lookup("/items", "id", lambda i: i["name"])
+            user_names = self.fetch_lookup("/users", "id", lambda u: f"{u['surname']} {u['name']}")
+
             response = APIClient.get(f"/breakdowns")
             breakdowns = response.json()
             self.breakdowns_table.setRowCount(len(breakdowns))
 
             for row, breakdown in enumerate(breakdowns):
                 self.breakdowns_table.setItem(row, 0, QTableWidgetItem(str(breakdown["id"])))
-
-                # Get item name
-                try:
-                    item_resp = APIClient.get(f"/items/{breakdown['item_id']}")
-                    item_name = item_resp.json().get("name", "")
-                    self.breakdowns_table.setItem(row, 1, QTableWidgetItem(item_name))
-                except:
-                    self.breakdowns_table.setItem(row, 1, QTableWidgetItem(""))
+                self.breakdowns_table.setItem(
+                    row, 1, QTableWidgetItem(item_names.get(breakdown["item_id"], "")))
 
                 self.breakdowns_table.setItem(row, 2, QTableWidgetItem(breakdown.get("comment", "")))
                 self.breakdowns_table.setItem(row, 3, QTableWidgetItem(breakdown.get("date", "")))
@@ -134,14 +134,8 @@ class BreakdownsTab(BaseTab):
                     breakdown.get("repaired_date", "") or "Не отремонтирована"))
 
                 # Get repairer name
-                repairer_name = ""
-                if breakdown.get("repairer_id"):
-                    try:
-                        repairer_resp = APIClient.get(f"/users/{breakdown['repairer_id']}")
-                        repairer_data = repairer_resp.json()
-                        repairer_name = f"{repairer_data['surname']} {repairer_data['name']}"
-                    except:
-                        pass
+                repairer_name = user_names.get(breakdown.get("repairer_id"), "") \
+                    if breakdown.get("repairer_id") else ""
 
                 self.breakdowns_table.setItem(row, 5, QTableWidgetItem(repairer_name))
 
