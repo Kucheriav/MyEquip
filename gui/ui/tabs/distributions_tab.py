@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
-from . import BaseTab
+from . import BaseTab, translate_status
 
 
 class DistributionsTab(BaseTab):
@@ -141,7 +141,8 @@ class DistributionsTab(BaseTab):
 
                 self.distributions_table.setItem(row, 4, QTableWidgetItem(dist.get("date", "")))
                 self.distributions_table.setItem(row, 5, QTableWidgetItem(dist.get("expiration_date", "")))
-                self.distributions_table.setItem(row, 6, QTableWidgetItem(dist.get("status", "")))
+                self.distributions_table.setItem(
+                    row, 6, QTableWidgetItem(translate_status(dist.get("status", ""))))
 
                 # Return button
                 return_btn = QPushButton("Вернуть")

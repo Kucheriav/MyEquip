@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox
 )
 from gui.api.client import APIClient
-from . import BaseTab
+from . import BaseTab, translate_status
 
 
 class UsersTab(BaseTab):
@@ -117,6 +117,6 @@ class UsersTab(BaseTab):
                 self.users_table.setItem(row, 1, QTableWidgetItem(fio))
                 self.users_table.setItem(row, 2, QTableWidgetItem(user["email"] or ""))
                 self.users_table.setItem(row, 3, QTableWidgetItem(user["phone"]))
-                self.users_table.setItem(row, 4, QTableWidgetItem(user["status"]))
+                self.users_table.setItem(row, 4, QTableWidgetItem(translate_status(user["status"])))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))

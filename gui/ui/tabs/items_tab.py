@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox,
-    QComboBox, QGroupBox, QFormLayout, QSpinBox, QCheckBox
+    QComboBox, QGroupBox, QFormLayout, QSpinBox, QCheckBox, QHeaderView
 )
 from PyQt6.QtGui import QDoubleValidator
 from gui.api.client import APIClient
-from . import BaseTab
+from . import BaseTab, translate_status
 
 
 class ItemsTab(BaseTab):
@@ -36,7 +36,13 @@ class ItemsTab(BaseTab):
         form.addRow("Серийный номер:", self.item_serial_input)
 
         self.item_status_combo = QComboBox()
-        self.item_status_combo.addItems(["available", "issued", "maintenance", "lost"])
+        for label, code in [
+            ("Доступен", "available"),
+            ("Выдан", "issued"),
+            ("В ремонте", "maintenance"),
+            ("Потерян", "lost"),
+        ]:
+            self.item_status_combo.addItem(label, code)
         form.addRow("Статус:", self.item_status_combo)
 
         # ---------- dynamic per-category property fields ----------
@@ -53,9 +59,11 @@ class ItemsTab(BaseTab):
 
         # Table
         self.items_table = QTableWidget()
-        self.items_table.setColumnCount(7)
+        self.items_table.setColumnCount(8)
         self.items_table.setHorizontalHeaderLabels(
-            ["ID", "Название", "Категория", "Склад", "Владелец", "Статус", "Серийный"])
+            ["ID", "Название", "Категория", "Склад", "Владелец", "Статус", "Серийный", "Свойства"])
+        self.items_table.horizontalHeader().setSectionResizeMode(
+            7, QHeaderView.ResizeMode.Stretch)
         self.layout.addWidget(QLabel("Список снаряжения:"))
         self.layout.addWidget(self.items_table)
 
@@ -177,7 +185,7 @@ class ItemsTab(BaseTab):
         storage_id = self.item_storage_combo.currentData()
         owner_id = self.item_owner_combo.currentData()
         serial = self.item_serial_input.text().strip()
-        status = self.item_status_combo.currentText()
+        status = self.item_status_combo.currentData()
 
         if not all([name, category_id, storage_id, owner_id]):
             QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля")
@@ -242,6 +250,23 @@ class ItemsTab(BaseTab):
             cat_names = self.fetch_lookup("/categories", "id", lambda c: c["title"])
             stor_names = self.fetch_lookup("/storages", "id", lambda s: s["name"])
             user_names = self.fetch_lookup("/users", "id", lambda u: f"{u['surname']} {u['name']}")
+            param_names = self.fetch_lookup("/parameters", "id", lambda p: p["name"])
+            value_texts = self.fetch_lookup("/values", "id", lambda v: v["value"])
+
+            # Group all parameter values by item: one request for the whole table
+            props_by_item = {}
+            item_params = APIClient.get("/item-parameters").json()
+            for ip in item_params:
+                if ip.get("value_id") is not None:
+                    text = value_texts.get(ip["value_id"], str(ip["value_id"]))
+                else:
+                    text = ip.get("custom_value") or ""
+                if text == "true":
+                    text = "да"
+                elif text == "false":
+                    text = "нет"
+                name = param_names.get(ip["parameter_id"], "")
+                props_by_item.setdefault(ip["item_id"], []).append(f"{name} - {text}")
 
             response = APIClient.get(f"/items")
             items = response.json()
@@ -257,7 +282,10 @@ class ItemsTab(BaseTab):
                 self.items_table.setItem(
                     row, 4, QTableWidgetItem(user_names.get(item["owner_id"], "")))
 
-                self.items_table.setItem(row, 5, QTableWidgetItem(item.get("status", "")))
+                self.items_table.setItem(
+                    row, 5, QTableWidgetItem(translate_status(item.get("status", ""))))
                 self.items_table.setItem(row, 6, QTableWidgetItem(item.get("serial_number", "")))
+                self.items_table.setItem(
+                    row, 7, QTableWidgetItem(", ".join(props_by_item.get(item["id"], []))))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))

@@ -1,5 +1,22 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QFormLayout
 
+# Status codes are stored in the DB in English; the GUI shows them in
+# Russian. Covers item statuses (items, distributions) and user statuses.
+STATUS_LABELS = {
+    "available": "Доступен",
+    "issued": "Выдан",
+    "maintenance": "В ремонте",
+    "lost": "Потерян",
+    "returned": "Возвращён",
+    "guest": "Гость",
+    "unverified": "Не подтверждён",
+    "full": "Подтверждён",
+}
+
+
+def translate_status(status):
+    return STATUS_LABELS.get(status, status if isinstance(status, str) else "")
+
 
 class BaseTab(QWidget):
     def __init__(self):
