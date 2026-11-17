@@ -10,7 +10,7 @@ class DistributionsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_distributions_data()
+        self.load_distributions_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Выдать снаряжение")
@@ -54,6 +54,7 @@ class DistributionsTab(BaseTab):
 
     def load_distributions_data(self):
         self.load_items_combo()
+        self.load_users_combo()
         self.load_distributions()
 
     def load_items_combo(self):
@@ -65,6 +66,24 @@ class DistributionsTab(BaseTab):
                 self.dist_item_combo.addItem(item["name"], item["id"])
         except:
             pass
+
+    def load_users_combo(self):
+        try:
+            response = APIClient.get("/users")
+            users = response.json()
+            self.dist_giver_combo.clear()
+            self.dist_getter_combo.clear()
+            for user in users:
+                fio = f"{user['surname']} {user['name']}"
+                self.dist_giver_combo.addItem(fio, user["id"])
+                self.dist_getter_combo.addItem(fio, user["id"])
+        except:
+            pass
+
+    def refresh_combos(self):
+        """Items and users may have been added in other tabs."""
+        self.load_items_combo()
+        self.load_users_combo()
 
     def issue_item(self):
         item_id = self.dist_item_combo.currentData()

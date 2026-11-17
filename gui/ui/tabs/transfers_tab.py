@@ -10,13 +10,14 @@ class TransfersTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_transfers_data()
+        self.load_transfers_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Переместить снаряжение")
         form = form_group.layout()
 
         self.transfer_item_combo = QComboBox()
+        self.transfer_item_combo.currentIndexChanged.connect(self.on_item_selected)
         form.addRow("Предмет:", self.transfer_item_combo)
 
         self.transfer_from_label = QLabel("—")
@@ -56,6 +57,12 @@ class TransfersTab(BaseTab):
         self.load_users_combo()
         self.load_storages_combo()
         self.load_transfers()
+
+    def refresh_combos(self):
+        """Items, users and storages may have been added in other tabs."""
+        self.load_items_combo()
+        self.load_users_combo()
+        self.load_storages_combo()
 
     def load_items_combo(self):
         try:

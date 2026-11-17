@@ -9,9 +9,8 @@ class StoragesTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_clubs()
-        # self.load_clubs_combo()
-        # self.load_storages()
+        self.load_clubs_combo()
+        self.load_storages()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить склад")
@@ -53,6 +52,10 @@ class StoragesTab(BaseTab):
                 self.storage_club_combo.addItem(club["name"], club["id"])
         except:
             pass
+
+    def refresh_combos(self):
+        """A club may have been added in the Clubs tab since last visit."""
+        self.load_clubs_combo()
 
     def add_storage(self):
         name = self.storage_name_input.text().strip()

@@ -9,7 +9,7 @@ class UsersTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_users()
+        self.load_users()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить пользователя")

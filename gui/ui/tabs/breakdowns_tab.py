@@ -10,7 +10,7 @@ class BreakdownsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_breakdowns_data()
+        self.load_breakdowns_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Зарегистрировать поломку")
@@ -47,7 +47,43 @@ class BreakdownsTab(BaseTab):
         self.layout.addWidget(refresh_btn)
 
     def load_breakdowns_data(self):
+        self.load_items_combo()
+        self.load_repairer_combo()
         self.load_breakdowns()
+
+    def load_items_combo(self):
+        try:
+            response = APIClient.get("/items")
+            items = response.json()
+            self.breakdown_item_combo.clear()
+            for item in items:
+                self.breakdown_item_combo.addItem(item["name"], item["id"])
+        except:
+            pass
+
+    def load_repairer_combo(self):
+        current = self.breakdown_repairer_combo.currentData()
+        try:
+            response = APIClient.get("/users")
+            users = response.json()
+            self.breakdown_repairer_combo.blockSignals(True)
+            self.breakdown_repairer_combo.clear()
+            self.breakdown_repairer_combo.addItem("Нет", None)
+            for user in users:
+                fio = f"{user['surname']} {user['name']}"
+                self.breakdown_repairer_combo.addItem(fio, user["id"])
+            if current is not None:
+                index = self.breakdown_repairer_combo.findData(current)
+                if index >= 0:
+                    self.breakdown_repairer_combo.setCurrentIndex(index)
+            self.breakdown_repairer_combo.blockSignals(False)
+        except:
+            pass
+
+    def refresh_combos(self):
+        """Items and users may have been added in other tabs."""
+        self.load_items_combo()
+        self.load_repairer_combo()
 
     def report_breakdown(self):
         item_id = self.breakdown_item_combo.currentData()
@@ -61,7 +97,8 @@ class BreakdownsTab(BaseTab):
             data = {
                 "item_id": item_id,
                 "comment": comment,
-                "date": QDate.currentDate().toString("yyyy-MM-dd")
+                "date": QDate.currentDate().toString("yyyy-MM-dd"),
+                "repairer_id": self.breakdown_repairer_combo.currentData(),
             }
 
             response = APIClient.post(f"/breakdowns", data)

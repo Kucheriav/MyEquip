@@ -9,7 +9,7 @@ class ItemsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_items_data()
+        self.load_items_data()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить снаряжение")
@@ -59,6 +59,12 @@ class ItemsTab(BaseTab):
         self.load_storages_combo()
         self.load_users_combo()
         self.load_items()
+
+    def refresh_combos(self):
+        """Categories, storages and users may have changed in other tabs."""
+        self.load_categories_combo()
+        self.load_storages_combo()
+        self.load_users_combo()
 
     def load_categories_combo(self):
         try:

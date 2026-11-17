@@ -9,7 +9,7 @@ class ClubsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_clubs()
+        self.load_clubs()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить клуб")

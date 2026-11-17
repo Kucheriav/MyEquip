@@ -49,6 +49,24 @@ class MainWindow(QMainWindow):
 
         central_widget.setLayout(main_layout)
 
+        # Rebuild dropdowns of a tab when it becomes visible: data added
+        # in another tab (a new club, user, item...) must appear in them.
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
+    # Map: tab index -> combo-refresh method (cross-tab data only)
+    def on_tab_changed(self, index: int):
+        refresh_map = {
+            1: self.load_clubs_combo,        # Склады: клубы
+            3: self.load_category_clubs_combo,  # Категории: клубы
+            4: self.refresh_item_combos,     # Снаряжение: категории, склады, владельцы
+            5: self.refresh_dist_combos,     # Выдачи: предметы, выдающий/получающий
+            6: self.load_transfer_combos,    # Перемещения: предметы, передающий, склады
+            7: self.load_breakdown_combos,   # Поломки: предметы, мастер
+        }
+        refresh = refresh_map.get(index)
+        if refresh:
+            refresh()
+
     # ==================== CLUBS TAB ====================
     def create_clubs_tab(self):
         widget = QWidget()
@@ -357,11 +375,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.categories_table)
 
         refresh_btn = QPushButton("Обновить")
-        refresh_btn.clicked.connect(lambda: [self.load_clubs_combo(), self.load_categories()])
+        refresh_btn.clicked.connect(lambda: [self.load_category_clubs_combo(), self.load_categories()])
         layout.addWidget(refresh_btn)
 
         widget.setLayout(layout)
-        self.load_clubs_combo()
+        self.load_category_clubs_combo()
         self.load_categories()
         return widget
 
@@ -513,6 +531,22 @@ class MainWindow(QMainWindow):
         except:
             pass
 
+    def load_category_clubs_combo(self):
+        """The category form's club dropdown (filled from the Clubs tab data)."""
+        try:
+            response = session.get(f"{API_URL}/clubs")
+            clubs = response.json()
+            self.category_club_combo.clear()
+            for club in clubs:
+                self.category_club_combo.addItem(club["name"], club["id"])
+        except:
+            pass
+
+    def refresh_item_combos(self):
+        self.load_categories_combo()
+        self.load_storages_combo()
+        self.load_users_combo()
+
     def add_item(self):
         name = self.item_name_input.text().strip()
         category_id = self.item_category_combo.currentData()
@@ -638,8 +672,26 @@ class MainWindow(QMainWindow):
 
     def load_distributions_data(self):
         self.load_items_combo()
-        self.load_users_combo()
+        self.load_dist_users_combo()
         self.load_distributions()
+
+    def load_dist_users_combo(self):
+        """Fill giver/getter dropdowns of the distributions tab."""
+        try:
+            response = session.get(f"{API_URL}/users")
+            users = response.json()
+            self.dist_giver_combo.clear()
+            self.dist_getter_combo.clear()
+            for user in users:
+                fio = f"{user['surname']} {user['name']}"
+                self.dist_giver_combo.addItem(fio, user["id"])
+                self.dist_getter_combo.addItem(fio, user["id"])
+        except:
+            pass
+
+    def refresh_dist_combos(self):
+        self.load_items_combo()
+        self.load_dist_users_combo()
 
     def load_items_combo(self):
         try:
@@ -972,9 +1024,36 @@ class MainWindow(QMainWindow):
         return widget
 
     def load_breakdowns_data(self):
-        self.load_items_combo()
-        self.load_users_combo()
+        self.load_breakdown_combos()
         self.load_breakdowns()
+
+    def load_breakdown_combos(self):
+        """Fill item and repairer dropdowns of the breakdowns tab."""
+        # Items
+        try:
+            response = session.get(f"{API_URL}/items")
+            items = response.json()
+            self.breakdown_item_combo.clear()
+            for item in items:
+                self.breakdown_item_combo.addItem(item["name"], item["id"])
+        except:
+            pass
+        # Repairer (users, with the 'Нет' option first)
+        try:
+            response = session.get(f"{API_URL}/users")
+            users = response.json()
+            current = self.breakdown_repairer_combo.currentData()
+            self.breakdown_repairer_combo.clear()
+            self.breakdown_repairer_combo.addItem("Нет", None)
+            for user in users:
+                fio = f"{user['surname']} {user['name']}"
+                self.breakdown_repairer_combo.addItem(fio, user["id"])
+            if current is not None:
+                index = self.breakdown_repairer_combo.findData(current)
+                if index >= 0:
+                    self.breakdown_repairer_combo.setCurrentIndex(index)
+        except:
+            pass
 
     def report_breakdown(self):
         item_id = self.breakdown_item_combo.currentData()
@@ -988,7 +1067,8 @@ class MainWindow(QMainWindow):
             data = {
                 "item_id": item_id,
                 "comment": comment,
-                "date": QDate.currentDate().toString("yyyy-MM-dd")
+                "date": QDate.currentDate().toString("yyyy-MM-dd"),
+                "repairer_id": self.breakdown_repairer_combo.currentData(),
             }
 
             response = session.post(f"{API_URL}/breakdowns", json=data)

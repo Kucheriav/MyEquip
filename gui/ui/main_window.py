@@ -30,7 +30,14 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(StoragesTab(), "Склады")
         self.tabs.addTab(UsersTab(), 'Туристы')
 
-
+        # Rebuild dropdowns of a tab when it becomes visible: data added
+        # in another tab (a new club, user, item...) must appear in them.
+        self.tabs.currentChanged.connect(self.on_tab_changed)
 
         main_layout.addWidget(self.tabs)
         central_widget.setLayout(main_layout)
+
+    def on_tab_changed(self, index: int):
+        tab = self.tabs.widget(index)
+        if hasattr(tab, "refresh_combos"):
+            tab.refresh_combos()

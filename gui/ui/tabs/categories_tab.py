@@ -9,7 +9,8 @@ class CategoriesTab(BaseTab):
     def __init__(self):
         super().__init__()
         self.init_ui()
-        # self.load_categories()
+        self.load_clubs_combo()
+        self.load_categories()
 
     def init_ui(self):
         form_group = self.create_form_group("Добавить категорию")
@@ -42,6 +43,21 @@ class CategoriesTab(BaseTab):
         refresh_btn = QPushButton("Обновить")
         refresh_btn.clicked.connect(self.load_categories)
         self.layout.addWidget(refresh_btn)
+
+    def load_clubs_combo(self):
+        try:
+            response = APIClient.get("/clubs")
+            clubs = response.json()
+            self.category_club_combo.clear()
+            for club in clubs:
+                self.category_club_combo.addItem(club["name"], club["id"])
+        except:
+            pass
+
+    def refresh_combos(self):
+        """A club or category may have been added in another tab."""
+        self.load_clubs_combo()
+        self.load_categories()
 
     def add_category(self):
         title = self.category_title_input.text().strip()
