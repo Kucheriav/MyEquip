@@ -28,7 +28,7 @@ class UsersTab(BaseTab):
         form.addRow("Отчество:", self.user_lastname_input)
 
         self.user_email_input = QLineEdit()
-        self.user_email_input.setPlaceholderText("Email")
+        self.user_email_input.setPlaceholderText("Email (необязательно)")
         form.addRow("Email:", self.user_email_input)
 
         self.user_phone_input = QLineEdit()
@@ -36,7 +36,7 @@ class UsersTab(BaseTab):
         form.addRow("Телефон:", self.user_phone_input)
 
         self.user_password_input = QLineEdit()
-        self.user_password_input.setPlaceholderText("Пароль")
+        self.user_password_input.setPlaceholderText("Пароль (необязательно: пусто = турист без аккаунта)")
         self.user_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow("Пароль:", self.user_password_input)
 
@@ -72,19 +72,19 @@ class UsersTab(BaseTab):
         password = self.user_password_input.text()
         status = self.user_status_combo.currentText()
 
-        if not all([name, surname, email, phone, password]):
-            QMessageBox.warning(self, "Ошибка", "Заполните все обязательные поля")
+        if not all([name, surname, phone]):
+            QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля (имя, фамилия, телефон)")
             return
 
         try:
-            pswd_hash = hashlib.sha256(password.encode()).hexdigest()
+            pswd_hash = hashlib.sha256(password.encode()).hexdigest() if password else None
             response = APIClient.post(
                 "/users",
                 {
                     "name": name,
                     "surname": surname,
                     "last_name": lastname,
-                    "email": email,
+                    "email": email or None,
                     "phone": phone,
                     "pswd_hash": pswd_hash,
                     "status": status
@@ -113,7 +113,7 @@ class UsersTab(BaseTab):
                 self.users_table.setItem(row, 0, QTableWidgetItem(str(user["id"])))
                 fio = f"{user['surname']} {user['name']} {user.get('last_name', '')}"
                 self.users_table.setItem(row, 1, QTableWidgetItem(fio))
-                self.users_table.setItem(row, 2, QTableWidgetItem(user["email"]))
+                self.users_table.setItem(row, 2, QTableWidgetItem(user["email"] or ""))
                 self.users_table.setItem(row, 3, QTableWidgetItem(user["phone"]))
                 self.users_table.setItem(row, 4, QTableWidgetItem(user["status"]))
         except Exception as e:

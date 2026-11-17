@@ -18,13 +18,14 @@ class RegisterRequest(BaseModel):
     surname: str
     last_name: Optional[str] = None
     date_of_birth: Optional[date] = None
-    email: EmailStr
-    phone: Optional[str] = None
+    phone: str
+    email: Optional[EmailStr] = None
     password: str
+    invite_code: str
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    login: str  # phone or email
     password: str
 
 
@@ -35,13 +36,17 @@ class TokenResponse(BaseModel):
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    """Create a user (password is hashed server-side)"""
+    """Register as a leader using an invite code.
+
+    If the phone matches an existing tourist record (created by a leader),
+    the account is upgraded in place and all history is preserved."""
     try:
         return auth_service.register_user(
             db,
-            email=request.email, password=request.password,
             name=request.name, surname=request.surname,
-            last_name=request.last_name, phone=request.phone,
+            phone=request.phone, password=request.password,
+            invite_code=request.invite_code,
+            last_name=request.last_name, email=request.email,
             date_of_birth=request.date_of_birth,
         )
     except AuthError as e:
@@ -50,9 +55,9 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate and get a JWT token"""
+    """Authenticate (by phone or email) and get a JWT token"""
     try:
-        user = auth_service.authenticate(db, email=request.email, password=request.password)
+        user = auth_service.authenticate(db, login=request.login, password=request.password)
     except AuthError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     return TokenResponse(access_token=auth_service.create_access_token(user))

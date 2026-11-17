@@ -6,5 +6,7 @@ pydantic-settings
 email-validator
 pymysql
 cryptography
+bcrypt
+pyjwt
 requests
 PyQt6

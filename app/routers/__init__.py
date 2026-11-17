@@ -26,4 +26,5 @@ __all__ = [
     "item_parameter_value_router",
     "transfer_router",
     "auth_router",
+    "invite_router",
 ]

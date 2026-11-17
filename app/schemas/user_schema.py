@@ -8,13 +8,13 @@ class UserBase(BaseModel):
     surname: str
     last_name: Optional[str] = None
     date_of_birth: Optional[date] = None
-    email: EmailStr
+    email: Optional[EmailStr] = None  # tourists may have no email
     phone: str
     status: str = 'guest'
 
 
 class UserCreate(UserBase):
-    pswd_hash: str
+    pswd_hash: Optional[str] = None  # None = tourist without an account
 
 
 class UserUpdate(BaseModel):

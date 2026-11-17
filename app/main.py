@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import create_all_tables
+from app.bootstrap import bootstrap_invite_if_empty
 from app.routers import (
     user_router, club_router, category_router, parameter_router,
     value_router, storage_router, item_router, distribution_router,
     breakdown_router, item_parameter_value_router, transfer_router,
-    auth_router,
+    auth_router, invite_router,
 )
 
 # Create FastAPI application
@@ -24,8 +25,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create all database tables
+# Create all database tables, then generate the first invite code if the DB is empty
 create_all_tables()
+bootstrap_invite_if_empty()
 
 # Include routers
 app.include_router(user_router.router)
@@ -40,6 +42,7 @@ app.include_router(breakdown_router.router)
 app.include_router(item_parameter_value_router.router)
 app.include_router(transfer_router.router)
 app.include_router(auth_router.router)
+app.include_router(invite_router.router)
 
 
 @app.get("/", tags=["root"])
@@ -49,6 +52,11 @@ async def root():
         "docs": "/docs",
         "openapi_schema": "/openapi.json"
     }
+
+
+@app.get("/health", tags=["root"])
+async def health():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

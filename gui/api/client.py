@@ -28,19 +28,31 @@ class APIClient:
         return requests.delete(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
 
     @staticmethod
-    def login(email: str, password: str) -> tuple[bool, str]:
+    def login(login: str, password: str) -> tuple[bool, str]:
         """Authenticate against the API and store the token.
         Returns (ok, message)."""
         try:
             response = requests.post(
                 f"{APIClient.BASE_URL}/auth/login",
-                json={"email": email, "password": password},
+                json={"login": login, "password": password},
             )
             if response.status_code == 200:
                 APIClient.TOKEN = response.json()["access_token"]
                 return True, "OK"
             detail = response.json().get("detail", "Ошибка авторизации")
             return False, str(detail)
+        except Exception as e:
+            return False, str(e)
+
+    @staticmethod
+    def register(data: dict) -> tuple[bool, str]:
+        """Register a leader with an invite code, then log in.
+        Returns (ok, message)."""
+        try:
+            response = requests.post(f"{APIClient.BASE_URL}/auth/register", json=data)
+            if response.status_code != 201:
+                return False, response.json().get("detail", "Ошибка регистрации")
+            return APIClient.login(data["phone"], data["password"])
         except Exception as e:
             return False, str(e)
 

@@ -5,12 +5,21 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTabWidget, QPushButton, QLabel, QLineEdit, QComboBox,
     QTableWidget, QTableWidgetItem, QDialog, QMessageBox,
-    QSpinBox, QDateEdit, QFormLayout, QScrollArea, QGroupBox
+    QSpinBox, QDateEdit, QFormLayout, QScrollArea, QGroupBox,
+    QStackedWidget
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QIcon
 
 API_URL = "http://localhost:8000/api"
+
+# Shared session: carries the Authorization header after login/registration
+session = requests.Session()
+
+
+def set_auth_token(token: str):
+    if token:
+        session.headers.update({"Authorization": f"Bearer {token}"})
 
 
 class MainWindow(QMainWindow):
@@ -81,7 +90,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            response = requests.post(f"{API_URL}/clubs", json={"name": name})
+            response = session.post(f"{API_URL}/clubs", json={"name": name})
             if response.status_code == 201:
                 QMessageBox.information(self, "Успех", "Клуб добавлен")
                 self.club_name_input.clear()
@@ -93,7 +102,7 @@ class MainWindow(QMainWindow):
 
     def load_clubs(self):
         try:
-            response = requests.get(f"{API_URL}/clubs")
+            response = session.get(f"{API_URL}/clubs")
             clubs = response.json()
             self.clubs_table.setRowCount(len(clubs))
             for row, club in enumerate(clubs):
@@ -146,7 +155,7 @@ class MainWindow(QMainWindow):
 
     def load_clubs_combo(self):
         try:
-            response = requests.get(f"{API_URL}/clubs")
+            response = session.get(f"{API_URL}/clubs")
             clubs = response.json()
             self.storage_club_combo.clear()
             for club in clubs:
@@ -164,7 +173,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            response = requests.post(
+            response = session.post(
                 f"{API_URL}/storages",
                 json={"name": name, "address": address, "club_id": club_id}
             )
@@ -180,7 +189,7 @@ class MainWindow(QMainWindow):
 
     def load_storages(self):
         try:
-            response = requests.get(f"{API_URL}/storages")
+            response = session.get(f"{API_URL}/storages")
             storages = response.json()
             self.storages_table.setRowCount(len(storages))
             for row, storage in enumerate(storages):
@@ -189,7 +198,7 @@ class MainWindow(QMainWindow):
                 self.storages_table.setItem(row, 2, QTableWidgetItem(storage.get("address", "")))
                 # Get club name
                 try:
-                    club_resp = requests.get(f"{API_URL}/clubs/{storage['club_id']}")
+                    club_resp = session.get(f"{API_URL}/clubs/{storage['club_id']}")
                     club_name = club_resp.json().get("name", "")
                     self.storages_table.setItem(row, 3, QTableWidgetItem(club_name))
                 except:
@@ -219,7 +228,7 @@ class MainWindow(QMainWindow):
         form.addRow("Отчество:", self.user_lastname_input)
 
         self.user_email_input = QLineEdit()
-        self.user_email_input.setPlaceholderText("Email")
+        self.user_email_input.setPlaceholderText("Email (необязательно)")
         form.addRow("Email:", self.user_email_input)
 
         self.user_phone_input = QLineEdit()
@@ -227,7 +236,7 @@ class MainWindow(QMainWindow):
         form.addRow("Телефон:", self.user_phone_input)
 
         self.user_password_input = QLineEdit()
-        self.user_password_input.setPlaceholderText("Пароль")
+        self.user_password_input.setPlaceholderText("Пароль (необязательно: пусто = турист без аккаунта)")
         self.user_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow("Пароль:", self.user_password_input)
 
@@ -267,19 +276,19 @@ class MainWindow(QMainWindow):
         password = self.user_password_input.text()
         status = self.user_status_combo.currentText()
 
-        if not all([name, surname, email, phone, password]):
-            QMessageBox.warning(self, "Ошибка", "Заполните все обязательные поля")
+        if not all([name, surname, phone]):
+            QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля (имя, фамилия, телефон)")
             return
 
         try:
-            pswd_hash = hashlib.sha256(password.encode()).hexdigest()
-            response = requests.post(
+            pswd_hash = hashlib.sha256(password.encode()).hexdigest() if password else None
+            response = session.post(
                 f"{API_URL}/users",
                 json={
                     "name": name,
                     "surname": surname,
                     "last_name": lastname,
-                    "email": email,
+                    "email": email or None,
                     "phone": phone,
                     "pswd_hash": pswd_hash,
                     "status": status
@@ -301,14 +310,14 @@ class MainWindow(QMainWindow):
 
     def load_users(self):
         try:
-            response = requests.get(f"{API_URL}/users")
+            response = session.get(f"{API_URL}/users")
             users = response.json()
             self.users_table.setRowCount(len(users))
             for row, user in enumerate(users):
                 self.users_table.setItem(row, 0, QTableWidgetItem(str(user["id"])))
                 fio = f"{user['surname']} {user['name']} {user.get('last_name', '')}"
                 self.users_table.setItem(row, 1, QTableWidgetItem(fio))
-                self.users_table.setItem(row, 2, QTableWidgetItem(user["email"]))
+                self.users_table.setItem(row, 2, QTableWidgetItem(user["email"] or ""))
                 self.users_table.setItem(row, 3, QTableWidgetItem(user["phone"]))
                 self.users_table.setItem(row, 4, QTableWidgetItem(user["status"]))
         except Exception as e:
@@ -370,7 +379,7 @@ class MainWindow(QMainWindow):
             if parent_id:
                 data["parent_id"] = parent_id
 
-            response = requests.post(f"{API_URL}/categories", json=data)
+            response = session.post(f"{API_URL}/categories", json=data)
             if response.status_code == 201:
                 QMessageBox.information(self, "Успех", "Категория добавлена")
                 self.category_title_input.clear()
@@ -382,7 +391,7 @@ class MainWindow(QMainWindow):
 
     def load_categories(self):
         try:
-            response = requests.get(f"{API_URL}/categories")
+            response = session.get(f"{API_URL}/categories")
             categories = response.json()
             self.categories_table.setRowCount(len(categories))
 
@@ -396,7 +405,7 @@ class MainWindow(QMainWindow):
 
                 # Get club name
                 try:
-                    club_resp = requests.get(f"{API_URL}/clubs/{category['club_id']}")
+                    club_resp = session.get(f"{API_URL}/clubs/{category['club_id']}")
                     club_name = club_resp.json().get("name", "")
                     self.categories_table.setItem(row, 2, QTableWidgetItem(club_name))
                 except:
@@ -405,7 +414,7 @@ class MainWindow(QMainWindow):
                 parent_name = ""
                 if category.get("parent_id"):
                     try:
-                        parent_resp = requests.get(f"{API_URL}/categories/{category['parent_id']}")
+                        parent_resp = session.get(f"{API_URL}/categories/{category['parent_id']}")
                         parent_name = parent_resp.json().get("title", "")
                     except:
                         pass
@@ -475,7 +484,7 @@ class MainWindow(QMainWindow):
 
     def load_categories_combo(self):
         try:
-            response = requests.get(f"{API_URL}/categories")
+            response = session.get(f"{API_URL}/categories")
             categories = response.json()
             self.item_category_combo.clear()
             for category in categories:
@@ -485,7 +494,7 @@ class MainWindow(QMainWindow):
 
     def load_storages_combo(self):
         try:
-            response = requests.get(f"{API_URL}/storages")
+            response = session.get(f"{API_URL}/storages")
             storages = response.json()
             self.item_storage_combo.clear()
             for storage in storages:
@@ -495,7 +504,7 @@ class MainWindow(QMainWindow):
 
     def load_users_combo(self):
         try:
-            response = requests.get(f"{API_URL}/users")
+            response = session.get(f"{API_URL}/users")
             users = response.json()
             self.item_owner_combo.clear()
             for user in users:
@@ -527,7 +536,7 @@ class MainWindow(QMainWindow):
             if serial:
                 data["serial_number"] = serial
 
-            response = requests.post(f"{API_URL}/items", json=data)
+            response = session.post(f"{API_URL}/items", json=data)
             if response.status_code == 201:
                 QMessageBox.information(self, "Успех", "Снаряжени�� добавлено")
                 self.item_name_input.clear()
@@ -540,7 +549,7 @@ class MainWindow(QMainWindow):
 
     def load_items(self):
         try:
-            response = requests.get(f"{API_URL}/items")
+            response = session.get(f"{API_URL}/items")
             items = response.json()
             self.items_table.setRowCount(len(items))
 
@@ -550,7 +559,7 @@ class MainWindow(QMainWindow):
 
                 # Get category name
                 try:
-                    cat_resp = requests.get(f"{API_URL}/categories/{item['category_id']}")
+                    cat_resp = session.get(f"{API_URL}/categories/{item['category_id']}")
                     cat_name = cat_resp.json().get("title", "")
                     self.items_table.setItem(row, 2, QTableWidgetItem(cat_name))
                 except:
@@ -558,7 +567,7 @@ class MainWindow(QMainWindow):
 
                 # Get storage name
                 try:
-                    stor_resp = requests.get(f"{API_URL}/storages/{item['storage_id']}")
+                    stor_resp = session.get(f"{API_URL}/storages/{item['storage_id']}")
                     stor_name = stor_resp.json().get("name", "")
                     self.items_table.setItem(row, 3, QTableWidgetItem(stor_name))
                 except:
@@ -566,7 +575,7 @@ class MainWindow(QMainWindow):
 
                 # Get owner name
                 try:
-                    owner_resp = requests.get(f"{API_URL}/users/{item['owner_id']}")
+                    owner_resp = session.get(f"{API_URL}/users/{item['owner_id']}")
                     owner_data = owner_resp.json()
                     owner_name = f"{owner_data['surname']} {owner_data['name']}"
                     self.items_table.setItem(row, 4, QTableWidgetItem(owner_name))
@@ -634,7 +643,7 @@ class MainWindow(QMainWindow):
 
     def load_items_combo(self):
         try:
-            response = requests.get(f"{API_URL}/items")
+            response = session.get(f"{API_URL}/items")
             items = response.json()
             self.dist_item_combo.clear()
             for item in items:
@@ -665,7 +674,7 @@ class MainWindow(QMainWindow):
             if comment:
                 data["comment"] = comment
 
-            response = requests.post(f"{API_URL}/distributions", json=data)
+            response = session.post(f"{API_URL}/distributions", json=data)
             if response.status_code == 201:
                 QMessageBox.information(self, "Успех", "Снаряжение выдано")
                 self.dist_comment_input.clear()
@@ -677,7 +686,7 @@ class MainWindow(QMainWindow):
 
     def load_distributions(self):
         try:
-            response = requests.get(f"{API_URL}/distributions")
+            response = session.get(f"{API_URL}/distributions")
             distributions = response.json()
             self.distributions_table.setRowCount(len(distributions))
 
@@ -686,7 +695,7 @@ class MainWindow(QMainWindow):
 
                 # Get item name
                 try:
-                    item_resp = requests.get(f"{API_URL}/items/{dist['item_id']}")
+                    item_resp = session.get(f"{API_URL}/items/{dist['item_id']}")
                     item_name = item_resp.json().get("name", "")
                     self.distributions_table.setItem(row, 1, QTableWidgetItem(item_name))
                 except:
@@ -694,7 +703,7 @@ class MainWindow(QMainWindow):
 
                 # Get giver name
                 try:
-                    giver_resp = requests.get(f"{API_URL}/users/{dist['giver_id']}")
+                    giver_resp = session.get(f"{API_URL}/users/{dist['giver_id']}")
                     giver_data = giver_resp.json()
                     giver_name = f"{giver_data['surname']} {giver_data['name']}"
                     self.distributions_table.setItem(row, 2, QTableWidgetItem(giver_name))
@@ -703,7 +712,7 @@ class MainWindow(QMainWindow):
 
                 # Get getter name
                 try:
-                    getter_resp = requests.get(f"{API_URL}/users/{dist['getter_id']}")
+                    getter_resp = session.get(f"{API_URL}/users/{dist['getter_id']}")
                     getter_data = getter_resp.json()
                     getter_name = f"{getter_data['surname']} {getter_data['name']}"
                     self.distributions_table.setItem(row, 3, QTableWidgetItem(getter_name))
@@ -727,7 +736,7 @@ class MainWindow(QMainWindow):
                 "status": "returned",
                 "accepting_date": QDate.currentDate().toString("yyyy-MM-dd")
             }
-            response = requests.put(f"{API_URL}/distributions/{distribution_id}", json=data)
+            response = session.put(f"{API_URL}/distributions/{distribution_id}", json=data)
             if response.status_code == 200:
                 QMessageBox.information(self, "Успех", "Предмет отмечен как возвращенный")
                 self.load_distributions()
@@ -792,7 +801,7 @@ class MainWindow(QMainWindow):
     def load_transfer_combos(self):
         # Items
         try:
-            response = requests.get(f"{API_URL}/items")
+            response = session.get(f"{API_URL}/items")
             items = response.json()
             self.transfer_item_combo.blockSignals(True)
             self.transfer_item_combo.clear()
@@ -803,7 +812,7 @@ class MainWindow(QMainWindow):
             pass
         # Users (mover)
         try:
-            response = requests.get(f"{API_URL}/users")
+            response = session.get(f"{API_URL}/users")
             users = response.json()
             self.transfer_mover_combo.clear()
             for user in users:
@@ -812,7 +821,7 @@ class MainWindow(QMainWindow):
             pass
         # Destination storages
         try:
-            response = requests.get(f"{API_URL}/storages")
+            response = session.get(f"{API_URL}/storages")
             storages = response.json()
             self.transfer_to_combo.clear()
             for storage in storages:
@@ -827,13 +836,13 @@ class MainWindow(QMainWindow):
             self.transfer_from_label.setText("—")
             return
         try:
-            response = requests.get(f"{API_URL}/items/{item_id}")
+            response = session.get(f"{API_URL}/items/{item_id}")
             item = response.json()
             storage_id = item.get("storage_id")
             storage_name = ""
             if storage_id:
                 try:
-                    storage_resp = requests.get(f"{API_URL}/storages/{storage_id}")
+                    storage_resp = session.get(f"{API_URL}/storages/{storage_id}")
                     storage_name = storage_resp.json().get("name", "")
                 except:
                     pass
@@ -853,7 +862,7 @@ class MainWindow(QMainWindow):
 
         # Source storage is the item's current storage
         try:
-            item_resp = requests.get(f"{API_URL}/items/{item_id}")
+            item_resp = session.get(f"{API_URL}/items/{item_id}")
             item = item_resp.json()
             from_storage_id = item.get("storage_id")
         except Exception as e:
@@ -879,7 +888,7 @@ class MainWindow(QMainWindow):
             if comment:
                 data["comment"] = comment
 
-            response = requests.post(f"{API_URL}/transfers", json=data)
+            response = session.post(f"{API_URL}/transfers", json=data)
             if response.status_code == 201:
                 QMessageBox.information(self, "Успех", "Предмет перемещён")
                 self.transfer_comment_input.clear()
@@ -891,7 +900,7 @@ class MainWindow(QMainWindow):
 
     def load_transfers(self):
         try:
-            response = requests.get(f"{API_URL}/transfers")
+            response = session.get(f"{API_URL}/transfers")
             transfers = response.json()
             self.transfers_table.setRowCount(len(transfers))
 
@@ -900,15 +909,15 @@ class MainWindow(QMainWindow):
 
                 item_name = ""
                 try:
-                    item_name = requests.get(f"{API_URL}/items/{transfer['item_id']}").json().get("name", "")
+                    item_name = session.get(f"{API_URL}/items/{transfer['item_id']}").json().get("name", "")
                 except:
                     pass
                 self.transfers_table.setItem(row, 1, QTableWidgetItem(item_name))
 
                 from_name = to_name = ""
                 try:
-                    from_name = requests.get(f"{API_URL}/storages/{transfer['from_storage_id']}").json().get("name", "")
-                    to_name = requests.get(f"{API_URL}/storages/{transfer['to_storage_id']}").json().get("name", "")
+                    from_name = session.get(f"{API_URL}/storages/{transfer['from_storage_id']}").json().get("name", "")
+                    to_name = session.get(f"{API_URL}/storages/{transfer['to_storage_id']}").json().get("name", "")
                 except:
                     pass
                 self.transfers_table.setItem(row, 2, QTableWidgetItem(from_name))
@@ -982,7 +991,7 @@ class MainWindow(QMainWindow):
                 "date": QDate.currentDate().toString("yyyy-MM-dd")
             }
 
-            response = requests.post(f"{API_URL}/breakdowns", json=data)
+            response = session.post(f"{API_URL}/breakdowns", json=data)
             if response.status_code == 201:
                 QMessageBox.information(self, "Успех", "Поломка зарегистрирована")
                 self.breakdown_comment_input.clear()
@@ -994,7 +1003,7 @@ class MainWindow(QMainWindow):
 
     def load_breakdowns(self):
         try:
-            response = requests.get(f"{API_URL}/breakdowns")
+            response = session.get(f"{API_URL}/breakdowns")
             breakdowns = response.json()
             self.breakdowns_table.setRowCount(len(breakdowns))
 
@@ -1003,7 +1012,7 @@ class MainWindow(QMainWindow):
 
                 # Get item name
                 try:
-                    item_resp = requests.get(f"{API_URL}/items/{breakdown['item_id']}")
+                    item_resp = session.get(f"{API_URL}/items/{breakdown['item_id']}")
                     item_name = item_resp.json().get("name", "")
                     self.breakdowns_table.setItem(row, 1, QTableWidgetItem(item_name))
                 except:
@@ -1018,7 +1027,7 @@ class MainWindow(QMainWindow):
                 repairer_name = ""
                 if breakdown.get("repairer_id"):
                     try:
-                        repairer_resp = requests.get(f"{API_URL}/users/{breakdown['repairer_id']}")
+                        repairer_resp = session.get(f"{API_URL}/users/{breakdown['repairer_id']}")
                         repairer_data = repairer_resp.json()
                         repairer_name = f"{repairer_data['surname']} {repairer_data['name']}"
                     except:
@@ -1039,7 +1048,7 @@ class MainWindow(QMainWindow):
             data = {
                 "repaired_date": QDate.currentDate().toString("yyyy-MM-dd")
             }
-            response = requests.put(f"{API_URL}/breakdowns/{breakdown_id}", json=data)
+            response = session.put(f"{API_URL}/breakdowns/{breakdown_id}", json=data)
             if response.status_code == 200:
                 QMessageBox.information(self, "Успех", "Предмет отмечен как отремонтированный")
                 self.load_breakdowns()
@@ -1056,8 +1065,148 @@ class MainWindow(QMainWindow):
         return group
 
 
+class StartDialog(QDialog):
+    """First screen: Login or Register (with invite code). No anonymous mode."""
+
+    PAGE_LOGIN = 0
+    PAGE_REGISTER = 1
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("MyEquip — вход")
+        self.resize(360, 260)
+
+        self.stack = QStackedWidget()
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.stack)
+        self.stack.addWidget(self._make_login_page())
+        self.stack.addWidget(self._make_register_page())
+        self.stack.setCurrentIndex(self.PAGE_LOGIN)
+
+    def _make_login_page(self):
+        page = QWidget()
+        form = QFormLayout(page)
+
+        title = QLabel("<b>Вход в MyEquip</b>")
+        form.addRow(title)
+
+        self.login_input = QLineEdit()
+        self.login_input.setPlaceholderText("Телефон или email")
+        form.addRow("Логин:", self.login_input)
+
+        self.login_password_input = QLineEdit()
+        self.login_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        form.addRow("Пароль:", self.login_password_input)
+
+        login_btn = QPushButton("Войти")
+        login_btn.setDefault(True)
+        login_btn.clicked.connect(self._try_login)
+        form.addRow(login_btn)
+
+        to_register_btn = QPushButton("Зарегистрироваться (по инвайт-коду)")
+        to_register_btn.clicked.connect(lambda: self.stack.setCurrentIndex(self.PAGE_REGISTER))
+        form.addRow(to_register_btn)
+        return page
+
+    def _make_register_page(self):
+        page = QWidget()
+        form = QFormLayout(page)
+
+        title = QLabel("<b>Регистрация руководителя</b>")
+        form.addRow(title)
+
+        self.reg_name_input = QLineEdit()
+        form.addRow("Имя:", self.reg_name_input)
+
+        self.reg_surname_input = QLineEdit()
+        form.addRow("Фамилия:", self.reg_surname_input)
+
+        self.reg_phone_input = QLineEdit()
+        self.reg_phone_input.setPlaceholderText("+7...")
+        form.addRow("Телефон:*", self.reg_phone_input)
+
+        self.reg_email_input = QLineEdit()
+        self.reg_email_input.setPlaceholderText("необязательно")
+        form.addRow("Email:", self.reg_email_input)
+
+        self.reg_password_input = QLineEdit()
+        self.reg_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        form.addRow("Пароль:*", self.reg_password_input)
+
+        self.reg_invite_input = QLineEdit()
+        self.reg_invite_input.setPlaceholderText("инвайт-код от руководителя")
+        form.addRow("Инвайт-код:*", self.reg_invite_input)
+
+        hint = QLabel(
+            "Если телефон уже есть в базе (вас записали как туриста),\n"
+            "регистрация подтянет вашу историю — данные не потеряются."
+        )
+        hint.setStyleSheet("color: gray; font-size: 8pt;")
+        form.addRow(hint)
+
+        register_btn = QPushButton("Зарегистрироваться")
+        register_btn.setDefault(True)
+        register_btn.clicked.connect(self._try_register)
+        form.addRow(register_btn)
+
+        to_login_btn = QPushButton("← Назад ко входу")
+        to_login_btn.clicked.connect(lambda: self.stack.setCurrentIndex(self.PAGE_LOGIN))
+        form.addRow(to_login_btn)
+        return page
+
+    def _try_login(self):
+        login = self.login_input.text().strip()
+        password = self.login_password_input.text()
+        if not login or not password:
+            QMessageBox.warning(self, "Ошибка", "Введите логин и пароль")
+            return
+        try:
+            response = requests.post(
+                f"{API_URL}/auth/login",
+                json={"login": login, "password": password},
+            )
+            if response.status_code == 200:
+                set_auth_token(response.json()["access_token"])
+                self.accept()
+            else:
+                QMessageBox.warning(self, "Ошибка входа", response.json().get("detail", "Ошибка"))
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка подключения", str(e))
+
+    def _try_register(self):
+        data = {
+            "name": self.reg_name_input.text().strip(),
+            "surname": self.reg_surname_input.text().strip(),
+            "phone": self.reg_phone_input.text().strip(),
+            "email": self.reg_email_input.text().strip() or None,
+            "password": self.reg_password_input.text(),
+            "invite_code": self.reg_invite_input.text().strip(),
+        }
+        if not data["name"] or not data["surname"] or not data["phone"] or not data["password"] or not data["invite_code"]:
+            QMessageBox.warning(self, "Ошибка", "Заполните все обязательные поля (*)")
+            return
+        try:
+            response = requests.post(f"{API_URL}/auth/register", json=data)
+            if response.status_code != 201:
+                QMessageBox.warning(self, "Ошибка регистрации", response.json().get("detail", "Ошибка"))
+                return
+            # Auto-login after successful registration
+            login_resp = requests.post(
+                f"{API_URL}/auth/login",
+                json={"login": data["phone"], "password": data["password"]},
+            )
+            if login_resp.status_code == 200:
+                set_auth_token(login_resp.json()["access_token"])
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка подключения", str(e))
+
+
 def main():
     app = QApplication(sys.argv)
+    start = StartDialog()
+    if start.exec() != QDialog.DialogCode.Accepted:
+        sys.exit(0)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
