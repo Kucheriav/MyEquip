@@ -111,6 +111,7 @@ leader = check(
 expect("first leader status is 'full'", leader and leader["status"] == "full", leader)
 expect("first leader role is 'leader'", leader and leader["role"] == "leader", leader)
 expect("first leader starts without clubs", leader and leader["club_ids"] == [], leader)
+leader_id = leader["id"] if leader else None
 
 check(
     "first leader logs in",
@@ -306,6 +307,15 @@ sk_auth = {"Authorization": f"Bearer {sk_token}"}
 sk_me = requests.get(f"{BASE_URL}/auth/me", headers=sk_auth).json()
 expect("storekeeper /auth/me reports role and club",
        sk_me.get("role") == "storekeeper" and sk_me.get("club_ids") == [club_id], sk_me)
+
+# The GUI needs per-club roles to offer only staff as givers
+users_payload = requests.get(f"{BASE_URL}/users", headers=auth).json()
+sk_row = next((u for u in users_payload if u["id"] == sk_id), None)
+expect("users expose per-club roles",
+       sk_row is not None and any(
+           m["club_id"] == club_id and m["role"] == "storekeeper"
+           for m in sk_row.get("memberships", [])),
+       sk_row)
 
 check("storekeeper cannot create a club", requests.post(
     f"{BASE_URL}/clubs/", headers=sk_auth, json={"name": f"sk-club-{stamp}"}), 403)
@@ -519,10 +529,18 @@ expect(
 )
 
 # ============ 10. Distribution: issue by leader, return by storekeeper ============
+check(
+    "issue where the giver is a tourist rejected with 400",
+    requests.post(f"{BASE_URL}/distributions/", headers=auth, json={
+        "item_id": item_id, "giver_id": user2_id, "getter_id": user_id,
+        "date": today.isoformat(), "status": "issued",
+    }),
+    400,
+)
 distribution = check(
     "leader issues the item",
     requests.post(f"{BASE_URL}/distributions/", headers=auth, json={
-        "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+        "item_id": item_id, "giver_id": leader_id, "getter_id": user2_id,
         "date": today.isoformat(),
         "expiration_date": (today + timedelta(days=14)).isoformat(),
         "status": "issued", "comment": "на поход выходного дня",
@@ -536,15 +554,22 @@ expect("item status is 'issued' after issue", issued_item["status"] == "issued",
 check(
     "storekeeper cannot issue an unavailable item twice",
     requests.post(f"{BASE_URL}/distributions/", headers=sk_auth, json={
-        "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+        "item_id": item_id, "giver_id": sk_id, "getter_id": user2_id,
         "date": today.isoformat(), "status": "issued",
+    }),
+    400,
+)
+check(
+    "acceptance by a tourist rejected with 400",
+    requests.post(f"{BASE_URL}/distributions/{distribution_id}/return", headers=sk_auth, json={
+        "accepter_id": user2_id, "accepting_date": today.isoformat(),
     }),
     400,
 )
 check(
     "storekeeper returns the item (POST /return)",
     requests.post(f"{BASE_URL}/distributions/{distribution_id}/return", headers=sk_auth, json={
-        "accepter_id": user_id, "accepting_date": today.isoformat(),
+        "accepter_id": sk_id, "accepting_date": today.isoformat(),
     }),
     200,
 )
@@ -583,10 +608,18 @@ expect("item status is 'available' after repair",
 
 # ============ 12. Transfer between storages of the same club ============
 check(
+    "transfer with a tourist as mover rejected with 400",
+    requests.post(f"{BASE_URL}/transfers/", headers=sk_auth, json={
+        "item_id": item_id, "from_storage_id": storage_id, "to_storage_id": storage2_id,
+        "date": today.isoformat(), "mover_id": user2_id,
+    }),
+    400,
+)
+check(
     "storekeeper transfers the item to storage2",
     requests.post(f"{BASE_URL}/transfers/", headers=sk_auth, json={
         "item_id": item_id, "from_storage_id": storage_id, "to_storage_id": storage2_id,
-        "date": today.isoformat(), "mover_id": user_id,
+        "date": today.isoformat(), "mover_id": sk_id,
         "comment": "передали на другой склад",
     }),
     201,
@@ -677,7 +710,7 @@ check(
 distribution2 = check(
     "storekeeper issues the item again",
     requests.post(f"{BASE_URL}/distributions/", headers=sk_auth, json={
-        "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+        "item_id": item_id, "giver_id": sk_id, "getter_id": user2_id,
         "date": today.isoformat(),
         "expiration_date": (today + timedelta(days=7)).isoformat(),
         "status": "issued",
@@ -689,7 +722,7 @@ distribution2_id = distribution2["id"] if distribution2 else None
 check(
     "return into another club's storage rejected with 400",
     requests.post(f"{BASE_URL}/distributions/{distribution2_id}/return", headers=sk_auth, json={
-        "accepter_id": user_id, "accepting_date": today.isoformat(),
+        "accepter_id": sk_id, "accepting_date": today.isoformat(),
         "storage_id": storage3_id,
     }),
     400,
@@ -698,7 +731,7 @@ check(
 check(
     "return with a different storage of the club",
     requests.post(f"{BASE_URL}/distributions/{distribution2_id}/return", headers=sk_auth, json={
-        "accepter_id": user_id, "accepting_date": today.isoformat(),
+        "accepter_id": sk_id, "accepting_date": today.isoformat(),
         "storage_id": storage_id, "comment": "вернули на первый склад",
     }),
     200,
@@ -721,14 +754,14 @@ expect("acceptance with storage change recorded in transfer history",
 if accept_transfers:
     record = accept_transfers[-1]
     expect("transfer on acceptance: mover = giver, receiver = accepter",
-           record["mover_id"] == user_id and record["receiver_id"] == user_id,
+           record["mover_id"] == sk_id and record["receiver_id"] == sk_id,
            record)
 
 # Returning without storage_id keeps the current storage
 distribution3 = check(
     "storekeeper issues the item one more time",
     requests.post(f"{BASE_URL}/distributions/", headers=sk_auth, json={
-        "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+        "item_id": item_id, "giver_id": sk_id, "getter_id": user2_id,
         "date": today.isoformat(), "status": "issued",
     }),
     201,
@@ -736,7 +769,7 @@ distribution3 = check(
 check(
     "return without storage_id accepted",
     requests.post(f"{BASE_URL}/distributions/{distribution3['id']}/return", headers=sk_auth, json={
-        "accepter_id": user_id, "accepting_date": today.isoformat(),
+        "accepter_id": sk_id, "accepting_date": today.isoformat(),
     }),
     200,
 )

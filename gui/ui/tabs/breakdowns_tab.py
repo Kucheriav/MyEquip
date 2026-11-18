@@ -3,12 +3,14 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
-from . import BaseTab
+from . import BaseTab, users_of_club, fill_user_combo
 
 
 class BreakdownsTab(BaseTab):
     def __init__(self):
         super().__init__()
+        self._items_by_id = {}
+        self._users = []
         self.init_ui()
 
     def init_ui(self):
@@ -16,6 +18,7 @@ class BreakdownsTab(BaseTab):
         form = form_group.layout()
 
         self.breakdown_item_combo = QComboBox()
+        self.breakdown_item_combo.currentIndexChanged.connect(self.on_item_changed)
         form.addRow("Предмет:", self.breakdown_item_combo)
 
         self.breakdown_comment_input = QLineEdit()
@@ -55,32 +58,45 @@ class BreakdownsTab(BaseTab):
 
     def load_items_combo(self):
         try:
-            response = APIClient.get("/items")
-            items = response.json()
+            items = APIClient.get("/items").json()
+            self._items_by_id = {item["id"]: item for item in items}
+            current = self.breakdown_item_combo.currentData()
+            self.breakdown_item_combo.blockSignals(True)
             self.breakdown_item_combo.clear()
             for item in items:
                 self.breakdown_item_combo.addItem(item["name"], item["id"])
-        except:
+            if current is not None:
+                index = self.breakdown_item_combo.findData(current)
+                if index >= 0:
+                    self.breakdown_item_combo.setCurrentIndex(index)
+            self.breakdown_item_combo.blockSignals(False)
+            self.on_item_changed()
+        except Exception:
             pass
 
     def load_repairer_combo(self):
-        current = self.breakdown_repairer_combo.currentData()
         try:
-            response = APIClient.get("/users")
-            users = response.json()
-            self.breakdown_repairer_combo.blockSignals(True)
-            self.breakdown_repairer_combo.clear()
-            self.breakdown_repairer_combo.addItem("Нет", None)
-            for user in users:
-                fio = f"{user['surname']} {user['name']}"
-                self.breakdown_repairer_combo.addItem(fio, user["id"])
-            if current is not None:
-                index = self.breakdown_repairer_combo.findData(current)
-                if index >= 0:
-                    self.breakdown_repairer_combo.setCurrentIndex(index)
-            self.breakdown_repairer_combo.blockSignals(False)
-        except:
+            self._users = APIClient.get("/users").json()
+            self.on_item_changed()
+        except Exception:
             pass
+
+    def on_item_changed(self):
+        """A repairer may be chosen only among the staff of the item's club."""
+        item = self._items_by_id.get(self.breakdown_item_combo.currentData())
+        club_id = item.get("club_id") if item else None
+
+        current = self.breakdown_repairer_combo.currentData()
+        self.breakdown_repairer_combo.blockSignals(True)
+        self.breakdown_repairer_combo.clear()
+        self.breakdown_repairer_combo.addItem("Нет", None)
+        for user in users_of_club(self._users, club_id, staff_only=True):
+            fio = f"{user['surname']} {user['name']}"
+            self.breakdown_repairer_combo.addItem(fio, user["id"])
+        index = self.breakdown_repairer_combo.findData(current)
+        if index >= 0:
+            self.breakdown_repairer_combo.setCurrentIndex(index)
+        self.breakdown_repairer_combo.blockSignals(False)
 
     def refresh_combos(self):
         """Items and users may have been added in other tabs."""

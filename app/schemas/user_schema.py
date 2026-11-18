@@ -28,10 +28,18 @@ class UserUpdate(BaseModel):
     status: Optional[str] = None
 
 
+class UserClubRole(BaseModel):
+    club_id: int
+    role: str  # leader / storekeeper / tourist - role inside that club
+
+
 class UserResponse(UserBase):
     id: int
     role: str = 'tourist'
     club_ids: List[int] = []
+    # Per-club roles: the GUI needs them to offer only club staff as
+    # givers/accepters (a user may be a tourist here and a storekeeper there).
+    memberships: List[UserClubRole] = []
 
     class Config:
         from_attributes = True

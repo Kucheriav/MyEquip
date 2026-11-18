@@ -29,6 +29,52 @@ def translate_role(role):
     return ROLE_LABELS.get(role, role if isinstance(role, str) else "")
 
 
+# Roles that may perform equipment operations (issue, accept, move)
+STAFF_ROLES = ("leader", "storekeeper")
+
+
+def club_role(user: dict, club_id):
+    """The user's role inside one club (or None if they are not a member)."""
+    for membership in user.get("memberships") or []:
+        if membership.get("club_id") == club_id:
+            return membership.get("role")
+    return None
+
+
+def users_of_club(users, club_id, staff_only: bool = False):
+    """Club members (optionally only leader/storekeeper)."""
+    if club_id is None:
+        return []
+    result = []
+    for user in users:
+        role = club_role(user, club_id)
+        if role is None:
+            continue
+        if staff_only and role not in STAFF_ROLES:
+            continue
+        result.append(user)
+    return result
+
+
+def fill_user_combo(combo, users, preferred_id=None, keep_current: bool = True):
+    """Fill a combo with users, keeping the selection when possible.
+    Falls back to preferred_id (usually the logged-in user)."""
+    from gui.api.client import APIClient
+
+    current = combo.currentData() if keep_current else None
+    combo.blockSignals(True)
+    combo.clear()
+    for user in users:
+        fio = f"{user['surname']} {user['name']}"
+        combo.addItem(fio, user["id"])
+    target = current if current is not None else (
+        preferred_id if preferred_id is not None else (APIClient.ME or {}).get("id"))
+    index = combo.findData(target) if target is not None else -1
+    if index >= 0:
+        combo.setCurrentIndex(index)
+    combo.blockSignals(False)
+
+
 class BaseTab(QWidget):
     def __init__(self):
         super().__init__()

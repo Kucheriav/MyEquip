@@ -3,12 +3,15 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
-from . import BaseTab
+from . import BaseTab, users_of_club, fill_user_combo
 
 
 class TransfersTab(BaseTab):
     def __init__(self):
         super().__init__()
+        self._items_by_id = {}
+        self._users = []
+        self._storages = []
         self.init_ui()
 
     def init_ui(self):
@@ -68,60 +71,69 @@ class TransfersTab(BaseTab):
 
     def load_items_combo(self):
         try:
-            response = APIClient.get("/items")
-            items = response.json()
+            items = APIClient.get("/items").json()
+            self._items_by_id = {item["id"]: item for item in items}
+            current = self.transfer_item_combo.currentData()
             self.transfer_item_combo.blockSignals(True)
             self.transfer_item_combo.clear()
             for item in items:
                 self.transfer_item_combo.addItem(item["name"], item["id"])
+            if current is not None:
+                index = self.transfer_item_combo.findData(current)
+                if index >= 0:
+                    self.transfer_item_combo.setCurrentIndex(index)
             self.transfer_item_combo.blockSignals(False)
             self.on_item_selected()
-        except:
+        except Exception:
             pass
-
-    def on_item_selected(self):
-        """Show the item's current storage as the (fixed) source."""
-        item_id = self.transfer_item_combo.currentData()
-        if not item_id:
-            self.transfer_from_label.setText("—")
-            return
-        try:
-            response = APIClient.get(f"/items/{item_id}")
-            item = response.json()
-            storage_id = item.get("storage_id")
-            storage_name = ""
-            if storage_id:
-                storage_resp = APIClient.get(f"/storages/{storage_id}")
-                storage_name = storage_resp.json().get("name", "")
-            self.transfer_from_label.setText(f"{storage_name} (id {storage_id})")
-        except:
-            self.transfer_from_label.setText("—")
 
     def load_users_combo(self):
         try:
-            response = APIClient.get("/users")
-            users = response.json()
-            self.transfer_mover_combo.clear()
-            for user in users:
-                fio = f"{user['surname']} {user['name']}"
-                self.transfer_mover_combo.addItem(fio, user["id"])
-        except:
+            self._users = APIClient.get("/users").json()
+            self.on_item_selected()
+        except Exception:
             pass
 
     def load_storages_combo(self):
         try:
-            response = APIClient.get("/storages")
-            storages = response.json()
-            current = self.transfer_to_combo.currentData()
-            self.transfer_to_combo.clear()
-            for storage in storages:
-                self.transfer_to_combo.addItem(storage["name"], storage["id"])
-            if current is not None:
-                index = self.transfer_to_combo.findData(current)
-                if index >= 0:
-                    self.transfer_to_combo.setCurrentIndex(index)
-        except:
+            self._storages = APIClient.get("/storages").json()
+            self.on_item_selected()
+        except Exception:
             pass
+
+    def on_item_selected(self):
+        """Show the item's current storage as the (fixed) source and offer
+        only storages of the same club; the mover is club staff."""
+        item = self._items_by_id.get(self.transfer_item_combo.currentData())
+        if not item:
+            self.transfer_from_label.setText("—")
+            self.transfer_to_combo.clear()
+            self.transfer_mover_combo.clear()
+            return
+
+        club_id = item.get("club_id")
+        storage_id = item.get("storage_id")
+        storage_names = {s["id"]: s["name"] for s in self._storages}
+        self.transfer_from_label.setText(
+            f"{storage_names.get(storage_id, '')} (id {storage_id})")
+
+        # Destination: other storages of the item's own club
+        current = self.transfer_to_combo.currentData()
+        self.transfer_to_combo.blockSignals(True)
+        self.transfer_to_combo.clear()
+        for storage in self._storages:
+            if storage.get("club_id") == club_id and storage["id"] != storage_id:
+                self.transfer_to_combo.addItem(storage["name"], storage["id"])
+        index = self.transfer_to_combo.findData(current)
+        if index >= 0:
+            self.transfer_to_combo.setCurrentIndex(index)
+        self.transfer_to_combo.blockSignals(False)
+
+        fill_user_combo(
+            self.transfer_mover_combo,
+            users_of_club(self._users, club_id, staff_only=True),
+            keep_current=False,
+        )
 
     def make_transfer(self):
         item_id = self.transfer_item_combo.currentData()

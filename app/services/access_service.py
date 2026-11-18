@@ -85,6 +85,21 @@ def is_staff_of(db: Session, user, club_id: int) -> bool:
     return member_role(db, user.id, club_id) in STAFF_ROLES
 
 
+def is_staff_member(db: Session, user_id: int, club_id: int) -> bool:
+    """Whether the referenced user (not necessarily the caller) is a
+    leader or storekeeper of the club - used to check the people chosen
+    as giver/accepter/mover of an operation."""
+    if auth_disabled():
+        return True
+    return member_role(db, user_id, club_id) in STAFF_ROLES
+
+
+def is_club_member(db: Session, user_id: int, club_id: int) -> bool:
+    if auth_disabled():
+        return True
+    return member_role(db, user_id, club_id) is not None
+
+
 def is_leader_of(db: Session, user, club_id: int) -> bool:
     if auth_disabled():
         return True

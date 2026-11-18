@@ -4,7 +4,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
-from . import BaseTab, translate_status
+from . import (
+    BaseTab, translate_status, users_of_club, fill_user_combo
+)
 
 
 class ReturnDialog(QDialog):
@@ -14,7 +16,7 @@ class ReturnDialog(QDialog):
     it came from, but the accepter may choose another one.
     """
 
-    def __init__(self, parent, item: dict, storages: list, users: list):
+    def __init__(self, parent, item: dict, storages: list, staff: list):
         super().__init__(parent)
         self.setWindowTitle("Приёмка снаряжения")
         self.resize(420, 260)
@@ -40,9 +42,7 @@ class ReturnDialog(QDialog):
         form.addRow("Дата приёмки:", self.date_edit)
 
         self.accepter_combo = QComboBox()
-        for user in users:
-            self.accepter_combo.addItem(
-                f"{user['surname']} {user['name']}", user["id"])
+        fill_user_combo(self.accepter_combo, staff, keep_current=False)
         form.addRow("Принял:", self.accepter_combo)
 
         self.comment_input = QLineEdit()
@@ -76,6 +76,7 @@ class DistributionsTab(BaseTab):
     def __init__(self):
         super().__init__()
         self._items_by_id = {}
+        self._users = []
         self.init_ui()
 
     def init_ui(self):
@@ -83,8 +84,11 @@ class DistributionsTab(BaseTab):
         form = form_group.layout()
 
         self.dist_item_combo = QComboBox()
+        self.dist_item_combo.currentIndexChanged.connect(self.on_item_changed)
         form.addRow("Предмет:", self.dist_item_combo)
 
+        # Only club staff can hand equipment out; anybody in the club can
+        # receive it (tourists included).
         self.dist_giver_combo = QComboBox()
         form.addRow("Выдающий:", self.dist_giver_combo)
 
@@ -129,24 +133,42 @@ class DistributionsTab(BaseTab):
         try:
             items = APIClient.get("/items").json()
             self._items_by_id = {item["id"]: item for item in items}
+            current = self.dist_item_combo.currentData()
+            self.dist_item_combo.blockSignals(True)
             self.dist_item_combo.clear()
             for item in items:
                 self.dist_item_combo.addItem(item["name"], item["id"])
+            if current is not None:
+                index = self.dist_item_combo.findData(current)
+                if index >= 0:
+                    self.dist_item_combo.setCurrentIndex(index)
+            self.dist_item_combo.blockSignals(False)
+            self.on_item_changed()
         except Exception:
             pass
 
     def load_users_combo(self):
         try:
-            response = APIClient.get("/users")
-            users = response.json()
-            self.dist_giver_combo.clear()
-            self.dist_getter_combo.clear()
-            for user in users:
-                fio = f"{user['surname']} {user['name']}"
-                self.dist_giver_combo.addItem(fio, user["id"])
-                self.dist_getter_combo.addItem(fio, user["id"])
+            self._users = APIClient.get("/users").json()
+            self.on_item_changed()
         except Exception:
             pass
+
+    def on_item_changed(self):
+        """Offer only the staff of the item's club as givers and only the
+        members of that club as getters."""
+        item = self._items_by_id.get(self.dist_item_combo.currentData())
+        club_id = item.get("club_id") if item else None
+        fill_user_combo(
+            self.dist_giver_combo,
+            users_of_club(self._users, club_id, staff_only=True),
+            keep_current=False,
+        )
+        fill_user_combo(
+            self.dist_getter_combo,
+            users_of_club(self._users, club_id),
+            keep_current=False,
+        )
 
     def load_data(self):
         self.load_distributions_data()
@@ -164,7 +186,10 @@ class DistributionsTab(BaseTab):
         comment = self.dist_comment_input.text().strip()
 
         if not all([item_id, giver_id, getter_id]):
-            QMessageBox.warning(self, "Ошибка", "Выберите предмет, выдающего и получающего")
+            QMessageBox.warning(
+                self, "Ошибка",
+                "Выберите предмет, выдающего и получающего.\n"
+                "Выдавать может только руководитель или завхоз клуба.")
             return
 
         try:
@@ -248,11 +273,16 @@ class DistributionsTab(BaseTab):
                     return
                 item = item_response.json()
 
-            storages = APIClient.get("/storages").json()
-            storages = [s for s in storages if s.get("club_id") == item.get("club_id")]
-            users = APIClient.get("/users").json()
+            club_id = item.get("club_id")
+            storages = [
+                s for s in APIClient.get("/storages").json()
+                if s.get("club_id") == club_id
+            ]
+            # The accepter is always club staff
+            staff = users_of_club(
+                APIClient.get("/users").json(), club_id, staff_only=True)
 
-            dialog = ReturnDialog(self, item, storages, users)
+            dialog = ReturnDialog(self, item, storages, staff)
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
 

@@ -56,7 +56,13 @@ def create_distribution(
         raise HTTPException(status_code=404, detail="Item not found")
     access_service.ensure_staff(db, current_user, item.club_id)
 
-    if access_service.member_role(db, distribution.getter_id, item.club_id) is None:
+    # Only club staff may hand equipment out; a tourist is a client.
+    if not access_service.is_staff_member(db, distribution.giver_id, item.club_id):
+        raise HTTPException(
+            status_code=400,
+            detail="The giver must be a leader or storekeeper of this club",
+        )
+    if not access_service.is_club_member(db, distribution.getter_id, item.club_id):
         raise HTTPException(status_code=400, detail="The getter is not a member of this club")
 
     try:
@@ -157,7 +163,15 @@ def update_distribution(
     db: Session = Depends(get_db),
 ):
     """Update distribution (syncs the item status when the status changes)"""
-    _get_visible_distribution(db, current_user, distribution_id)
+    distribution = _get_visible_distribution(db, current_user, distribution_id)
+    if distribution_update.accepter_id is not None:
+        item = item_crud.get(db, distribution.item_id)
+        if item and not access_service.is_staff_member(
+                db, distribution_update.accepter_id, item.club_id):
+            raise HTTPException(
+                status_code=400,
+                detail="The accepter must be a leader or storekeeper of this club",
+            )
     try:
         return distribution_service.update_distribution(
             db, distribution_id=distribution_id, data=distribution_update
@@ -176,7 +190,15 @@ def return_distribution(
     """Accept an item back (sets distribution to 'returned', item to
     'available'). The item may be put into another storage of the same
     club; that movement is recorded in the transfer history."""
-    _get_visible_distribution(db, current_user, distribution_id)
+    distribution = _get_visible_distribution(db, current_user, distribution_id)
+    if request.accepter_id is not None:
+        item = item_crud.get(db, distribution.item_id)
+        if item and not access_service.is_staff_member(
+                db, request.accepter_id, item.club_id):
+            raise HTTPException(
+                status_code=400,
+                detail="The accepter must be a leader or storekeeper of this club",
+            )
     try:
         return distribution_service.return_distribution(
             db,

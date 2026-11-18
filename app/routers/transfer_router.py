@@ -44,6 +44,16 @@ def create_transfer(
         raise HTTPException(status_code=404, detail="Item not found")
     access_service.ensure_staff(db, current_user, item.club_id)
 
+    # The people named in the movement log must be club staff
+    for field, value in (("mover_id", transfer.mover_id),
+                         ("receiver_id", transfer.receiver_id)):
+        if value is not None and not access_service.is_staff_member(
+                db, value, item.club_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"The {field.replace('_id', '')} must be a leader or storekeeper of this club",
+            )
+
     from_storage = storage_crud.get(db, transfer.from_storage_id)
     to_storage = storage_crud.get(db, transfer.to_storage_id)
     if from_storage and from_storage.club_id != item.club_id:
