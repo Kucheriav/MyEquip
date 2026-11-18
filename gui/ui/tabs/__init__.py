@@ -56,6 +56,14 @@ def users_of_club(users, club_id, staff_only: bool = False):
     return result
 
 
+def current_user_id():
+    """ID of the logged-in user — they always perform the operation
+    themselves, so giver/accepter/mover are never chosen in the GUI."""
+    from gui.api.client import APIClient
+
+    return (APIClient.ME or {}).get("id")
+
+
 def fill_user_combo(combo, users, preferred_id=None, keep_current: bool = True):
     """Fill a combo with users, keeping the selection when possible.
     Falls back to preferred_id (usually the logged-in user)."""

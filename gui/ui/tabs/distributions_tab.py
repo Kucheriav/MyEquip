@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
 from . import (
-    BaseTab, translate_status, users_of_club, fill_user_combo
+    BaseTab, translate_status, users_of_club, fill_user_combo, current_user_id
 )
 
 
@@ -13,13 +13,14 @@ class ReturnDialog(QDialog):
     """Accepting an issued item back.
 
     A returned item goes into a storage of its club — by default the one
-    it came from, but the accepter may choose another one.
+    it came from, but the accepter may choose another one. The accepter
+    is always the logged-in user.
     """
 
-    def __init__(self, parent, item: dict, storages: list, staff: list):
+    def __init__(self, parent, item: dict, storages: list):
         super().__init__(parent)
         self.setWindowTitle("Приёмка снаряжения")
-        self.resize(420, 260)
+        self.resize(420, 230)
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -41,10 +42,6 @@ class ReturnDialog(QDialog):
         self.date_edit.setDate(QDate.currentDate())
         form.addRow("Дата приёмки:", self.date_edit)
 
-        self.accepter_combo = QComboBox()
-        fill_user_combo(self.accepter_combo, staff, keep_current=False)
-        form.addRow("Принял:", self.accepter_combo)
-
         self.comment_input = QLineEdit()
         self.comment_input.setPlaceholderText("Комментарий (опционально)")
         form.addRow("Комментарий:", self.comment_input)
@@ -64,8 +61,9 @@ class ReturnDialog(QDialog):
             "accepting_date": self.date_edit.date().toString("yyyy-MM-dd"),
             "storage_id": self.storage_combo.currentData(),
         }
-        if self.accepter_combo.currentData() is not None:
-            data["accepter_id"] = self.accepter_combo.currentData()
+        accepter_id = current_user_id()
+        if accepter_id is not None:
+            data["accepter_id"] = accepter_id
         comment = self.comment_input.text().strip()
         if comment:
             data["comment"] = comment
@@ -87,11 +85,8 @@ class DistributionsTab(BaseTab):
         self.dist_item_combo.currentIndexChanged.connect(self.on_item_changed)
         form.addRow("Предмет:", self.dist_item_combo)
 
-        # Only club staff can hand equipment out; anybody in the club can
-        # receive it (tourists included).
-        self.dist_giver_combo = QComboBox()
-        form.addRow("Выдающий:", self.dist_giver_combo)
-
+        # The giver is always the logged-in user; anybody in the club can
+        # receive the equipment (tourists included).
         self.dist_getter_combo = QComboBox()
         form.addRow("Получающий:", self.dist_getter_combo)
 
@@ -155,15 +150,9 @@ class DistributionsTab(BaseTab):
             pass
 
     def on_item_changed(self):
-        """Offer only the staff of the item's club as givers and only the
-        members of that club as getters."""
+        """Offer only the members of the item's club as getters."""
         item = self._items_by_id.get(self.dist_item_combo.currentData())
         club_id = item.get("club_id") if item else None
-        fill_user_combo(
-            self.dist_giver_combo,
-            users_of_club(self._users, club_id, staff_only=True),
-            keep_current=False,
-        )
         fill_user_combo(
             self.dist_getter_combo,
             users_of_club(self._users, club_id),
@@ -180,16 +169,21 @@ class DistributionsTab(BaseTab):
 
     def issue_item(self):
         item_id = self.dist_item_combo.currentData()
-        giver_id = self.dist_giver_combo.currentData()
         getter_id = self.dist_getter_combo.currentData()
         expiration_date = self.dist_expiration_date.date().toString("yyyy-MM-dd")
         comment = self.dist_comment_input.text().strip()
 
-        if not all([item_id, giver_id, getter_id]):
+        if not all([item_id, getter_id]):
+            QMessageBox.warning(self, "Ошибка", "Выберите предмет и получающего.")
+            return
+
+        # The issuer is always the logged-in user
+        giver_id = current_user_id()
+        if giver_id is None:
             QMessageBox.warning(
                 self, "Ошибка",
-                "Выберите предмет, выдающего и получающего.\n"
-                "Выдавать может только руководитель или завхоз клуба.")
+                "Не удалось определить текущего пользователя.\n"
+                "Войдите в систему заново.")
             return
 
         try:
@@ -278,11 +272,8 @@ class DistributionsTab(BaseTab):
                 s for s in APIClient.get("/storages").json()
                 if s.get("club_id") == club_id
             ]
-            # The accepter is always club staff
-            staff = users_of_club(
-                APIClient.get("/users").json(), club_id, staff_only=True)
 
-            dialog = ReturnDialog(self, item, storages, staff)
+            dialog = ReturnDialog(self, item, storages)
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
 

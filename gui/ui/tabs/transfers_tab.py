@@ -3,14 +3,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
-from . import BaseTab, users_of_club, fill_user_combo
+from . import BaseTab, current_user_id
 
 
 class TransfersTab(BaseTab):
     def __init__(self):
         super().__init__()
         self._items_by_id = {}
-        self._users = []
         self._storages = []
         self.init_ui()
 
@@ -27,9 +26,6 @@ class TransfersTab(BaseTab):
 
         self.transfer_to_combo = QComboBox()
         form.addRow("На склад:", self.transfer_to_combo)
-
-        self.transfer_mover_combo = QComboBox()
-        form.addRow("Передающий:", self.transfer_mover_combo)
 
         self.transfer_comment_input = QLineEdit()
         self.transfer_comment_input.setPlaceholderText("Комментарий (опционально)")
@@ -56,14 +52,12 @@ class TransfersTab(BaseTab):
 
     def load_transfers_data(self):
         self.load_items_combo()
-        self.load_users_combo()
         self.load_storages_combo()
         self.load_transfers()
 
     def refresh_combos(self):
-        """Items, users and storages may have been added in other tabs."""
+        """Items and storages may have been added in other tabs."""
         self.load_items_combo()
-        self.load_users_combo()
         self.load_storages_combo()
 
     def load_data(self):
@@ -87,13 +81,6 @@ class TransfersTab(BaseTab):
         except Exception:
             pass
 
-    def load_users_combo(self):
-        try:
-            self._users = APIClient.get("/users").json()
-            self.on_item_selected()
-        except Exception:
-            pass
-
     def load_storages_combo(self):
         try:
             self._storages = APIClient.get("/storages").json()
@@ -103,12 +90,11 @@ class TransfersTab(BaseTab):
 
     def on_item_selected(self):
         """Show the item's current storage as the (fixed) source and offer
-        only storages of the same club; the mover is club staff."""
+        only storages of the same club; the mover is the logged-in user."""
         item = self._items_by_id.get(self.transfer_item_combo.currentData())
         if not item:
             self.transfer_from_label.setText("—")
             self.transfer_to_combo.clear()
-            self.transfer_mover_combo.clear()
             return
 
         club_id = item.get("club_id")
@@ -129,20 +115,22 @@ class TransfersTab(BaseTab):
             self.transfer_to_combo.setCurrentIndex(index)
         self.transfer_to_combo.blockSignals(False)
 
-        fill_user_combo(
-            self.transfer_mover_combo,
-            users_of_club(self._users, club_id, staff_only=True),
-            keep_current=False,
-        )
-
     def make_transfer(self):
         item_id = self.transfer_item_combo.currentData()
-        mover_id = self.transfer_mover_combo.currentData()
         to_storage_id = self.transfer_to_combo.currentData()
         comment = self.transfer_comment_input.text().strip()
 
         if not all([item_id, to_storage_id]):
             QMessageBox.warning(self, "Ошибка", "Выберите предмет и склад назначения")
+            return
+
+        # The person moving the item is always the logged-in user
+        mover_id = current_user_id()
+        if mover_id is None:
+            QMessageBox.warning(
+                self, "Ошибка",
+                "Не удалось определить текущего пользователя.\n"
+                "Войдите в систему заново.")
             return
 
         # Source storage is taken from the item itself
@@ -163,9 +151,8 @@ class TransfersTab(BaseTab):
                 "from_storage_id": from_storage_id,
                 "to_storage_id": to_storage_id,
                 "date": QDate.currentDate().toString("yyyy-MM-dd"),
+                "mover_id": mover_id,
             }
-            if mover_id:
-                data["mover_id"] = mover_id
             if comment:
                 data["comment"] = comment
 
