@@ -1,18 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+
 from app.database import get_db
 from app.crud import ParameterCRUD
 from app.schemas.parameter_schema import ParameterCreate, ParameterUpdate, ParameterResponse
 from app.dependencies import require_auth
-from typing import List
+from app.models import User
+from app.services import access_service
 
 router = APIRouter(prefix="/api/parameters", tags=["parameters"], dependencies=[Depends(require_auth)])
 parameter_crud = ParameterCRUD()
 
 
 @router.post("/", response_model=ParameterResponse, status_code=201)
-def create_parameter(parameter: ParameterCreate, db: Session = Depends(get_db)):
-    """Create a new parameter"""
+def create_parameter(
+    parameter: ParameterCreate,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Create a new parameter (leaders only; parameters are global)"""
+    access_service.ensure_leader_any(current_user)
     return parameter_crud.create(db, obj_in=parameter)
 
 
@@ -32,8 +40,14 @@ def get_all_parameters(skip: int = 0, limit: int = 100, db: Session = Depends(ge
 
 
 @router.put("/{parameter_id}", response_model=ParameterResponse)
-def update_parameter(parameter_id: int, parameter_update: ParameterUpdate, db: Session = Depends(get_db)):
-    """Update parameter"""
+def update_parameter(
+    parameter_id: int,
+    parameter_update: ParameterUpdate,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Update parameter (leaders only)"""
+    access_service.ensure_leader_any(current_user)
     db_parameter = parameter_crud.get(db, parameter_id)
     if not db_parameter:
         raise HTTPException(status_code=404, detail="Parameter not found")
@@ -41,8 +55,13 @@ def update_parameter(parameter_id: int, parameter_update: ParameterUpdate, db: S
 
 
 @router.delete("/{parameter_id}", status_code=204)
-def delete_parameter(parameter_id: int, db: Session = Depends(get_db)):
-    """Delete parameter"""
+def delete_parameter(
+    parameter_id: int,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Delete parameter (leaders only)"""
+    access_service.ensure_leader_any(current_user)
     if not parameter_crud.delete(db, parameter_id):
         raise HTTPException(status_code=404, detail="Parameter not found")
     return None

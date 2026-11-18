@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models import User
+from app.models import User, ClubMember
 from app.schemas.user_schema import UserCreate, UserUpdate
 from app.crud.base_crud import BaseCRUD
 
@@ -20,9 +20,12 @@ class UserCRUD(BaseCRUD[User, UserCreate, UserUpdate]):
         return db.query(User).filter(User.phone == phone).first()
 
     def get_by_club(self, db: Session, club_id: int):
-        return db.query(User).join(User.clubs).filter(
-            User.clubs.any(id=club_id)
-        ).all()
+        return (
+            db.query(User)
+            .join(ClubMember, ClubMember.user_id == User.id)
+            .filter(ClubMember.club_id == club_id)
+            .all()
+        )
 
 
 user_crud = UserCRUD()

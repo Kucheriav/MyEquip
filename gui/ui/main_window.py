@@ -1,10 +1,12 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget, QLabel
 
+from gui.api.client import APIClient
 from .tabs.breakdowns_tab import BreakdownsTab
 from .tabs.categories_tab import CategoriesTab
 from .tabs.clubs_tab import ClubsTab
 from .tabs.distributions_tab import DistributionsTab
 from .tabs.items_tab import ItemsTab
+from .tabs.storekeepers_tab import StorekeepersTab
 from .tabs.storages_tab import StoragesTab
 from .tabs.transfers_tab import TransfersTab
 from .tabs.users_tab import UsersTab
@@ -16,26 +18,58 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("MyEquip - Equipment Tracking System")
         self.setGeometry(100, 100, 1400, 900)
 
+        if APIClient.ME is None:
+            APIClient.fetch_me()
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout()
+        central_widget.setLayout(main_layout)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(BreakdownsTab(), 'Поломки')
-        self.tabs.addTab(CategoriesTab(), 'Категории')
-        self.tabs.addTab(ClubsTab(), 'Клубы')
-        self.tabs.addTab(DistributionsTab(), 'Выдача')
-        self.tabs.addTab(ItemsTab(), 'Снаряга')
-        self.tabs.addTab(TransfersTab(), 'Перемещения')
-        self.tabs.addTab(StoragesTab(), "Склады")
-        self.tabs.addTab(UsersTab(), 'Туристы')
 
-        # Rebuild dropdowns of a tab when it becomes visible: data added
-        # in another tab (a new club, user, item...) must appear in them.
-        self.tabs.currentChanged.connect(self.on_tab_changed)
+        # Tabs depend on the role: a leader manages everything, a
+        # storekeeper only works with equipment, tourists have no GUI.
+        if APIClient.is_leader():
+            tab_defs = [
+                (ItemsTab, "Снаряга"),
+                (DistributionsTab, "Выдача"),
+                (BreakdownsTab, "Поломки"),
+                (TransfersTab, "Перемещения"),
+                (CategoriesTab, "Категории"),
+                (StoragesTab, "Склады"),
+                (ClubsTab, "Клубы"),
+                (UsersTab, "Туристы"),
+                (StorekeepersTab, "Завхозы"),
+            ]
+        elif APIClient.is_staff():
+            tab_defs = [
+                (ItemsTab, "Снаряга"),
+                (DistributionsTab, "Выдача"),
+                (BreakdownsTab, "Поломки"),
+                (TransfersTab, "Перемещения"),
+            ]
+        else:
+            tab_defs = []
 
-        main_layout.addWidget(self.tabs)
-        central_widget.setLayout(main_layout)
+        for tab_class, title in tab_defs:
+            self.tabs.addTab(tab_class(), title)
+
+        if not tab_defs:
+            user = APIClient.ME or {}
+            name = f"{user.get('surname', '')} {user.get('name', '')}".strip()
+            label = QLabel(
+                f"Здравствуйте, {name}!\n\n"
+                "У вашей учётной записи нет доступа к управлению снаряжением.\n"
+                "Обратитесь к руководителю клуба."
+            )
+            label.setStyleSheet("font-size: 12pt; padding: 24px;")
+            main_layout.addWidget(label)
+        else:
+            main_layout.addWidget(self.tabs)
+            # Rebuild dropdowns of a tab when it becomes visible: data added
+            # in another tab (a new club, user, item...) must appear in them.
+            self.tabs.currentChanged.connect(self.on_tab_changed)
 
     def on_tab_changed(self, index: int):
         tab = self.tabs.widget(index)

@@ -2,19 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 
 from app.database import get_db
-from app.crud import DistributionCRUD
+from app.crud import DistributionCRUD, ItemCRUD
+from app.crud.user_crud import user_crud
 from app.schemas.distribution_schema import (
     DistributionCreate, DistributionUpdate, DistributionResponse
 )
-from app.services import distribution_service, BusinessRuleError
+from app.services import distribution_service, access_service, BusinessRuleError
 from app.dependencies import require_auth
-from typing import List
+from app.models import Distribution, Item, User
 
 router = APIRouter(prefix="/api/distributions", tags=["distributions"], dependencies=[Depends(require_auth)])
 distribution_crud = DistributionCRUD()
+item_crud = ItemCRUD()
 
 
 class DistributionReturnRequest(BaseModel):
@@ -29,9 +31,32 @@ def _handle_business_rule(e: BusinessRuleError):
     raise HTTPException(status_code=status, detail=message)
 
 
+def _get_visible_distribution(db: Session, current_user: User | None, distribution_id: int) -> Distribution:
+    distribution = distribution_crud.get(db, distribution_id)
+    if not distribution:
+        raise HTTPException(status_code=404, detail="Distribution not found")
+    item = item_crud.get(db, distribution.item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    access_service.ensure_staff(db, current_user, item.club_id)
+    return distribution
+
+
 @router.post("/", response_model=DistributionResponse, status_code=201)
-def create_distribution(distribution: DistributionCreate, db: Session = Depends(get_db)):
+def create_distribution(
+    distribution: DistributionCreate,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
     """Issue an item to a user (only 'available' items; sets item status to 'issued')"""
+    item = item_crud.get(db, distribution.item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    access_service.ensure_staff(db, current_user, item.club_id)
+
+    if access_service.member_role(db, distribution.getter_id, item.club_id) is None:
+        raise HTTPException(status_code=400, detail="The getter is not a member of this club")
+
     try:
         return distribution_service.create_distribution(db, data=distribution)
     except BusinessRuleError as e:
@@ -39,51 +64,98 @@ def create_distribution(distribution: DistributionCreate, db: Session = Depends(
 
 
 @router.get("/{distribution_id}", response_model=DistributionResponse)
-def get_distribution(distribution_id: int, db: Session = Depends(get_db)):
+def get_distribution(
+    distribution_id: int,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
     """Get distribution by ID"""
-    distribution = distribution_crud.get(db, distribution_id)
-    if not distribution:
-        raise HTTPException(status_code=404, detail="Distribution not found")
-    return distribution
+    return _get_visible_distribution(db, current_user, distribution_id)
 
 
 @router.get("/", response_model=List[DistributionResponse])
-def get_all_distributions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Get all distributions"""
-    return distribution_crud.get_all(db, skip=skip, limit=limit)
+def get_all_distributions(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Get distributions of your clubs"""
+    query = db.query(Distribution).join(Item, Item.id == Distribution.item_id)
+    query = access_service.filter_by_clubs(query, Item.club_id, db, current_user)
+    return query.offset(skip).limit(limit).all()
 
 
 @router.get("/item/{item_id}", response_model=List[DistributionResponse])
-def get_distributions_by_item(item_id: int, db: Session = Depends(get_db)):
+def get_distributions_by_item(
+    item_id: int,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
     """Get all distributions for an item"""
+    item = item_crud.get(db, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    access_service.ensure_staff(db, current_user, item.club_id)
     return distribution_crud.get_by_item(db, item_id)
 
 
 @router.get("/user-given/{user_id}", response_model=List[DistributionResponse])
-def get_distributions_given_by_user(user_id: int, db: Session = Depends(get_db)):
-    """Get all items given by a user"""
-    return distribution_crud.get_by_user_given(db, user_id)
+def get_distributions_given_by_user(
+    user_id: int,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Get all items given by a user (within your clubs)"""
+    query = (
+        db.query(Distribution)
+        .join(Item, Item.id == Distribution.item_id)
+        .filter(Distribution.giver_id == user_id)
+    )
+    query = access_service.filter_by_clubs(query, Item.club_id, db, current_user)
+    return query.all()
 
 
 @router.get("/user-received/{user_id}", response_model=List[DistributionResponse])
-def get_distributions_received_by_user(user_id: int, db: Session = Depends(get_db)):
-    """Get all items received by a user"""
-    return distribution_crud.get_by_user_received(db, user_id)
+def get_distributions_received_by_user(
+    user_id: int,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Get all items received by a user (within your clubs)"""
+    query = (
+        db.query(Distribution)
+        .join(Item, Item.id == Distribution.item_id)
+        .filter(Distribution.getter_id == user_id)
+    )
+    query = access_service.filter_by_clubs(query, Item.club_id, db, current_user)
+    return query.all()
 
 
 @router.get("/active/", response_model=List[DistributionResponse])
-def get_active_distributions(db: Session = Depends(get_db)):
-    """Get all active distributions"""
-    return distribution_crud.get_active_distributions(db)
+def get_active_distributions(
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Get all active distributions of your clubs"""
+    query = (
+        db.query(Distribution)
+        .join(Item, Item.id == Distribution.item_id)
+        .filter(Distribution.status == "issued")
+    )
+    query = access_service.filter_by_clubs(query, Item.club_id, db, current_user)
+    return query.all()
 
 
 @router.put("/{distribution_id}", response_model=DistributionResponse)
 def update_distribution(
     distribution_id: int,
     distribution_update: DistributionUpdate,
-    db: Session = Depends(get_db)
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
 ):
     """Update distribution (syncs the item status when the status changes)"""
+    _get_visible_distribution(db, current_user, distribution_id)
     try:
         return distribution_service.update_distribution(
             db, distribution_id=distribution_id, data=distribution_update
@@ -96,9 +168,11 @@ def update_distribution(
 def return_distribution(
     distribution_id: int,
     request: DistributionReturnRequest,
+    current_user: User | None = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
     """Accept an item back (sets distribution to 'returned', item to 'available')"""
+    _get_visible_distribution(db, current_user, distribution_id)
     try:
         return distribution_service.return_distribution(
             db,

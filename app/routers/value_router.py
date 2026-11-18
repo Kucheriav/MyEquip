@@ -1,18 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+
 from app.database import get_db
 from app.crud import ValueCRUD
 from app.schemas.value_schema import ValueCreate, ValueUpdate, ValueResponse
 from app.dependencies import require_auth
-from typing import List
+from app.models import User
+from app.services import access_service
 
 router = APIRouter(prefix="/api/values", tags=["values"], dependencies=[Depends(require_auth)])
 value_crud = ValueCRUD()
 
 
 @router.post("/", response_model=ValueResponse, status_code=201)
-def create_value(value: ValueCreate, db: Session = Depends(get_db)):
-    """Create a new value"""
+def create_value(
+    value: ValueCreate,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Create a new value (leaders only; parameters are global)"""
+    access_service.ensure_leader_any(current_user)
     return value_crud.create(db, obj_in=value)
 
 
@@ -38,8 +46,14 @@ def get_values_by_parameter(parameter_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{value_id}", response_model=ValueResponse)
-def update_value(value_id: int, value_update: ValueUpdate, db: Session = Depends(get_db)):
-    """Update value"""
+def update_value(
+    value_id: int,
+    value_update: ValueUpdate,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Update value (leaders only)"""
+    access_service.ensure_leader_any(current_user)
     db_value = value_crud.get(db, value_id)
     if not db_value:
         raise HTTPException(status_code=404, detail="Value not found")
@@ -47,8 +61,13 @@ def update_value(value_id: int, value_update: ValueUpdate, db: Session = Depends
 
 
 @router.delete("/{value_id}", status_code=204)
-def delete_value(value_id: int, db: Session = Depends(get_db)):
-    """Delete value"""
+def delete_value(
+    value_id: int,
+    current_user: User | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Delete value (leaders only)"""
+    access_service.ensure_leader_any(current_user)
     if not value_crud.delete(db, value_id):
         raise HTTPException(status_code=404, detail="Value not found")
     return None

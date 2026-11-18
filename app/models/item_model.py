@@ -10,7 +10,9 @@ class Item(Base):
     name = Column(String(100), nullable=False, index=True)
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=False)
     storage_id = Column(Integer, ForeignKey('storages.id'), nullable=False)
-    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    # Ownership is by club and never changes (a transfer only moves the
+    # item between storages of the same club).
+    club_id = Column(Integer, ForeignKey('clubs.id'), nullable=False, index=True)
     status = Column(
         Enum('available', 'issued', 'maintenance', 'lost', name="item_status_enum"),
         default='available',
@@ -21,7 +23,7 @@ class Item(Base):
     # Relationships
     category = relationship("Category", back_populates="items")
     storage = relationship("Storage", back_populates="items")
-    owner = relationship("User", back_populates="items")
+    club = relationship("Club", back_populates="items")
     distributions = relationship("Distribution", back_populates="item")
     breakdowns = relationship("Breakdown", back_populates="item")
     transfers = relationship("Transfer", back_populates="item")

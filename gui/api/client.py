@@ -9,12 +9,42 @@ class APIClient:
     # 127.0.0.1 instead of 'localhost': skips the slow IPv6 lookup attempt
     BASE_URL = "http://127.0.0.1:8000/api"
     TOKEN: str | None = None
+    # Current user profile from /auth/me: role + club_ids + personal data
+    ME: dict | None = None
 
     @staticmethod
     def _headers() -> dict:
         if APIClient.TOKEN:
             return {"Authorization": f"Bearer {APIClient.TOKEN}"}
         return {}
+
+    # ---------- current user ----------
+    @staticmethod
+    def fetch_me() -> dict | None:
+        """Load and cache the current user profile (role, clubs)."""
+        try:
+            response = APIClient.get("/auth/me")
+            if response.status_code == 200:
+                APIClient.ME = response.json()
+        except Exception:
+            APIClient.ME = None
+        return APIClient.ME
+
+    @staticmethod
+    def role() -> str:
+        return (APIClient.ME or {}).get("role", "tourist")
+
+    @staticmethod
+    def is_leader() -> bool:
+        return APIClient.role() == "leader"
+
+    @staticmethod
+    def is_staff() -> bool:
+        return APIClient.role() in ("leader", "storekeeper")
+
+    @staticmethod
+    def my_club_ids() -> list:
+        return (APIClient.ME or {}).get("club_ids", [])
 
     @staticmethod
     def get(endpoint):
@@ -43,6 +73,7 @@ class APIClient:
             )
             if response.status_code == 200:
                 APIClient.TOKEN = response.json()["access_token"]
+                APIClient.fetch_me()
                 return True, "OK"
             detail = response.json().get("detail", "Ошибка авторизации")
             return False, str(detail)

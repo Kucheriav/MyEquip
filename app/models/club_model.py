@@ -10,10 +10,11 @@ class Club(Base):
     name = Column(String(100), nullable=False, unique=True)
 
     # Relationships
-    users = relationship(
-        "User",
-        secondary="user_in_club",
-        back_populates="clubs"
+    members = relationship(
+        "ClubMember",
+        back_populates="club",
+        cascade="all, delete-orphan",
     )
     categories = relationship("Category", back_populates="club")
     storages = relationship("Storage", back_populates="club")
+    items = relationship("Item", back_populates="club")

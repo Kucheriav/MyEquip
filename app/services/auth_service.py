@@ -2,12 +2,13 @@
 
 Registration flow (invite-code based):
 - a valid unused invite code is required;
-- if the phone matches an existing user without a password (a tourist
-  recorded by a leader), that user's account is upgraded in place
-  (same id -> all history is preserved);
+- the invite type decides the role: an independent leader (no clubs) or
+  a storekeeper of the invite's club;
+- if the phone (or email) matches an existing user without a real
+  password (a tourist recorded by a leader), that user's account is
+  upgraded in place (same id -> all history is preserved);
 - otherwise a new user is created;
-- the invite code is marked as used;
-- the registered user becomes a leader (status 'full').
+- the invite code is marked as used.
 
 Login works by phone or email (login field containing '@' is treated
 as an email). Legacy users created by the GUI with client-side sha256
@@ -23,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.config import config
 from app.crud.user_crud import user_crud
 from app.models import User
-from app.services import invite_service
+from app.services import access_service, invite_service
 from app.services.exceptions import AuthError
 
 ALGORITHM = "HS256"
@@ -77,17 +78,20 @@ def register_user(
     email: Optional[str] = None,
     date_of_birth=None,
 ) -> User:
-    """Register (or upgrade) a user as a leader using an invite code."""
+    """Register (or upgrade) a user according to the invite type."""
     invite = invite_service.validate_code(db, invite_code)
 
+    # Match an existing tourist record by phone or (if no phone match) email
     existing = user_crud.get_by_phone(db, phone=phone)
+    if existing is None and email:
+        existing = user_crud.get_by_email(db, email=email)
+
     if existing is not None:
         # Only accounts with a real (bcrypt) password are protected;
         # leader-created records (no password or legacy client-side sha256)
         # are upgraded in place: same id, same history.
         if existing.pswd_hash and existing.pswd_hash.startswith("$2"):
-            raise AuthError("This phone number is already registered")
-        # Upgrade the tourist record in place: same id, same history
+            raise AuthError("This account is already registered, please log in")
         existing.name = name
         existing.surname = surname
         if last_name is not None:
@@ -96,6 +100,8 @@ def register_user(
             existing.email = email
         if date_of_birth is not None:
             existing.date_of_birth = date_of_birth
+        if not existing.phone:
+            existing.phone = phone
         existing.pswd_hash = hash_password(password)
         existing.status = "full"
         db.add(existing)
@@ -108,6 +114,24 @@ def register_user(
             date_of_birth=date_of_birth, email=email, phone=phone,
             pswd_hash=hash_password(password), status="full",
         )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    # Apply the role carried by the invite
+    if invite.role == "storekeeper":
+        if invite.club_id is None:
+            raise AuthError("This invite is not linked to a club")
+        if user.role != "leader":  # never downgrade a leader
+            user.role = "storekeeper"
+        user.status = "full"
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        access_service.add_member(db, user.id, invite.club_id, "storekeeper")
+    else:
+        user.role = "leader"
+        user.status = "full"
         db.add(user)
         db.commit()
         db.refresh(user)

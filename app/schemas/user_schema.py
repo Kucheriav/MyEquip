@@ -15,6 +15,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     pswd_hash: Optional[str] = None  # None = tourist without an account
+    club_id: Optional[int] = None  # required: the club the tourist belongs to
 
 
 class UserUpdate(BaseModel):
@@ -29,6 +30,8 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    role: str = 'tourist'
+    club_ids: List[int] = []
 
     class Config:
         from_attributes = True

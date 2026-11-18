@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox
 )
 from gui.api.client import APIClient
-from . import BaseTab, translate_status
+from . import BaseTab, translate_status, translate_role
 
 
 class UsersTab(BaseTab):
@@ -11,8 +11,11 @@ class UsersTab(BaseTab):
         self.init_ui()
 
     def init_ui(self):
-        form_group = self.create_form_group("Добавить пользователя")
+        form_group = self.create_form_group("Добавить туриста")
         form = form_group.layout()
+
+        self.user_club_combo = QComboBox()
+        form.addRow("Клуб:", self.user_club_combo)
 
         self.user_name_input = QLineEdit()
         self.user_name_input.setPlaceholderText("Имя")
@@ -48,7 +51,7 @@ class UsersTab(BaseTab):
             self.user_status_combo.addItem(label, code)
         form.addRow("Статус:", self.user_status_combo)
 
-        add_user_btn = QPushButton("Добавить пользователя")
+        add_user_btn = QPushButton("Добавить туриста")
         add_user_btn.clicked.connect(self.add_user)
         form.addRow(add_user_btn)
 
@@ -56,21 +59,41 @@ class UsersTab(BaseTab):
 
         # Table
         self.users_table = QTableWidget()
-        self.users_table.setColumnCount(6)
-        self.users_table.setHorizontalHeaderLabels(["ID", "ФИО", "Email", "Телефон", "Статус", "Действия"])
-        self.layout.addWidget(QLabel("Список пользователей:"))
+        self.users_table.setColumnCount(7)
+        self.users_table.setHorizontalHeaderLabels(
+            ["ID", "ФИО", "Клуб", "Email", "Телефон", "Статус", "Роль"])
+        self.layout.addWidget(QLabel("Список людей:"))
         self.layout.addWidget(self.users_table)
 
         refresh_btn = QPushButton("Обновить")
-        refresh_btn.clicked.connect(self.load_users)
+        refresh_btn.clicked.connect(self.load_data)
         self.layout.addWidget(refresh_btn)
 
+    def load_clubs_combo(self):
+        try:
+            clubs = APIClient.get("/clubs").json()
+            current = self.user_club_combo.currentData()
+            self.user_club_combo.clear()
+            for club in clubs:
+                self.user_club_combo.addItem(club["name"], club["id"])
+            if current is not None:
+                index = self.user_club_combo.findData(current)
+                if index >= 0:
+                    self.user_club_combo.setCurrentIndex(index)
+        except Exception:
+            pass
+
     def load_data(self):
+        self.load_clubs_combo()
         self.load_users()
+
+    def refresh_combos(self):
+        self.load_clubs_combo()
 
     def add_user(self):
         import hashlib
 
+        club_id = self.user_club_combo.currentData()
         name = self.user_name_input.text().strip()
         surname = self.user_surname_input.text().strip()
         lastname = self.user_lastname_input.text().strip()
@@ -79,8 +102,10 @@ class UsersTab(BaseTab):
         password = self.user_password_input.text()
         status = self.user_status_combo.currentData()
 
-        if not all([name, surname, phone]):
-            QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля (имя, фамилия, телефон)")
+        if not all([club_id, name, surname, phone]):
+            QMessageBox.warning(
+                self, "Ошибка",
+                "Заполните обязательные поля (клуб, имя, фамилия, телефон)")
             return
 
         try:
@@ -88,6 +113,7 @@ class UsersTab(BaseTab):
             response = APIClient.post(
                 "/users",
                 {
+                    "club_id": club_id,
                     "name": name,
                     "surname": surname,
                     "last_name": lastname,
@@ -113,6 +139,8 @@ class UsersTab(BaseTab):
 
     def load_users(self):
         try:
+            club_names = self.fetch_lookup("/clubs", "id", lambda c: c["name"])
+
             response = APIClient.get("/users")
             users = response.json()
             self.users_table.setRowCount(len(users))
@@ -120,8 +148,14 @@ class UsersTab(BaseTab):
                 self.users_table.setItem(row, 0, QTableWidgetItem(str(user["id"])))
                 fio = f"{user['surname']} {user['name']} {user.get('last_name', '')}"
                 self.users_table.setItem(row, 1, QTableWidgetItem(fio))
-                self.users_table.setItem(row, 2, QTableWidgetItem(user["email"] or ""))
-                self.users_table.setItem(row, 3, QTableWidgetItem(user["phone"]))
-                self.users_table.setItem(row, 4, QTableWidgetItem(translate_status(user["status"])))
+                clubs = ", ".join(
+                    club_names.get(cid, str(cid)) for cid in user.get("club_ids", []))
+                self.users_table.setItem(row, 2, QTableWidgetItem(clubs))
+                self.users_table.setItem(row, 3, QTableWidgetItem(user["email"] or ""))
+                self.users_table.setItem(row, 4, QTableWidgetItem(user["phone"]))
+                self.users_table.setItem(
+                    row, 5, QTableWidgetItem(translate_status(user["status"])))
+                self.users_table.setItem(
+                    row, 6, QTableWidgetItem(translate_role(user.get("role", "tourist"))))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))

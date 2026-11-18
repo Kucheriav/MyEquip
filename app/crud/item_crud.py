@@ -12,8 +12,8 @@ class ItemCRUD(BaseCRUD[Item, ItemCreate, ItemUpdate]):
     def get_by_storage(self, db: Session, storage_id: int) -> List[Item]:
         return db.query(Item).filter(Item.storage_id == storage_id).all()
 
-    def get_by_owner(self, db: Session, owner_id: int) -> List[Item]:
-        return db.query(Item).filter(Item.owner_id == owner_id).all()
+    def get_by_club(self, db: Session, club_id: int) -> List[Item]:
+        return db.query(Item).filter(Item.club_id == club_id).all()
 
     def get_by_category(self, db: Session, category_id: int) -> List[Item]:
         return db.query(Item).filter(Item.category_id == category_id).all()

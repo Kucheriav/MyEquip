@@ -10,6 +10,8 @@ from . import BaseTab, translate_status
 class ItemsTab(BaseTab):
     def __init__(self):
         super().__init__()
+        self._categories = []
+        self._storages = []
         self.init_ui()
 
     def init_ui(self):
@@ -20,6 +22,12 @@ class ItemsTab(BaseTab):
         self.item_name_input.setPlaceholderText("Название предмета")
         form.addRow("Название:", self.item_name_input)
 
+        # An item belongs to a club; its category and storage must be
+        # from the same club (the club can never change later).
+        self.item_club_combo = QComboBox()
+        self.item_club_combo.currentIndexChanged.connect(self.on_club_changed)
+        form.addRow("Клуб:", self.item_club_combo)
+
         self.item_category_combo = QComboBox()
         # Dynamic property fields below are rebuilt when the category changes
         self.item_category_combo.currentIndexChanged.connect(self.load_category_fields)
@@ -27,9 +35,6 @@ class ItemsTab(BaseTab):
 
         self.item_storage_combo = QComboBox()
         form.addRow("Склад:", self.item_storage_combo)
-
-        self.item_owner_combo = QComboBox()
-        form.addRow("Владелец:", self.item_owner_combo)
 
         self.item_serial_input = QLineEdit()
         self.item_serial_input.setPlaceholderText("Серийный номер (опционально)")
@@ -61,7 +66,7 @@ class ItemsTab(BaseTab):
         self.items_table = QTableWidget()
         self.items_table.setColumnCount(8)
         self.items_table.setHorizontalHeaderLabels(
-            ["ID", "Название", "Категория", "Склад", "Владелец", "Статус", "Серийный", "Свойства"])
+            ["ID", "Название", "Клуб", "Категория", "Склад", "Статус", "Серийный", "Свойства"])
         self.items_table.horizontalHeader().setSectionResizeMode(
             7, QHeaderView.ResizeMode.Stretch)
         self.layout.addWidget(QLabel("Список снаряжения:"))
@@ -71,54 +76,68 @@ class ItemsTab(BaseTab):
         refresh_btn.clicked.connect(self.load_items_data)
         self.layout.addWidget(refresh_btn)
 
+    # ---------- loading ----------
     def load_items_data(self):
-        self.load_categories_combo()
-        self.load_storages_combo()
-        self.load_users_combo()
+        self._reload_lookups()
         self.load_items()
 
     def load_data(self):
         self.load_items_data()
 
     def refresh_combos(self):
-        """Categories, storages and users may have changed in other tabs."""
-        self.load_categories_combo()
-        self.load_storages_combo()
-        self.load_users_combo()
+        """Categories, storages and clubs may have changed in other tabs."""
+        self._reload_lookups()
 
-    def load_categories_combo(self):
+    def _reload_lookups(self):
         try:
-            response = APIClient.get("/categories")
-            categories = response.json()
-            self.item_category_combo.blockSignals(True)
-            self.item_category_combo.clear()
-            for category in categories:
+            self._categories = APIClient.get("/categories").json()
+        except Exception:
+            self._categories = []
+        try:
+            self._storages = APIClient.get("/storages").json()
+        except Exception:
+            self._storages = []
+        self.load_clubs_combo()
+
+    def load_clubs_combo(self):
+        try:
+            clubs = APIClient.get("/clubs").json()
+        except Exception:
+            return
+        current = self.item_club_combo.currentData()
+        self.item_club_combo.blockSignals(True)
+        self.item_club_combo.clear()
+        for club in clubs:
+            self.item_club_combo.addItem(club["name"], club["id"])
+        if current is not None:
+            index = self.item_club_combo.findData(current)
+            if index >= 0:
+                self.item_club_combo.setCurrentIndex(index)
+        self.item_club_combo.blockSignals(False)
+        self.on_club_changed()
+
+    def on_club_changed(self):
+        """Show only categories and storages of the selected club."""
+        club_id = self.item_club_combo.currentData()
+
+        self.item_category_combo.blockSignals(True)
+        self.item_category_combo.clear()
+        for category in self._categories:
+            if category.get("club_id") == club_id:
                 self.item_category_combo.addItem(category["title"], category["id"])
-            self.item_category_combo.blockSignals(False)
-            self.load_category_fields()
-        except:
-            pass
+        self.item_category_combo.blockSignals(False)
 
-    def load_storages_combo(self):
-        try:
-            response = APIClient.get("/storages")
-            storages = response.json()
-            self.item_storage_combo.clear()
-            for storage in storages:
+        current_storage = self.item_storage_combo.currentData()
+        self.item_storage_combo.clear()
+        for storage in self._storages:
+            if storage.get("club_id") == club_id:
                 self.item_storage_combo.addItem(storage["name"], storage["id"])
-        except:
-            pass
+        if current_storage is not None:
+            index = self.item_storage_combo.findData(current_storage)
+            if index >= 0:
+                self.item_storage_combo.setCurrentIndex(index)
 
-    def load_users_combo(self):
-        try:
-            response = APIClient.get("/users")
-            users = response.json()
-            self.item_owner_combo.clear()
-            for user in users:
-                fio = f"{user['surname']} {user['name']}"
-                self.item_owner_combo.addItem(fio, user["id"])
-        except:
-            pass
+        self.load_category_fields()
 
     # ---------- dynamic per-category fields ----------
     def load_category_fields(self):
@@ -183,12 +202,11 @@ class ItemsTab(BaseTab):
         name = self.item_name_input.text().strip()
         category_id = self.item_category_combo.currentData()
         storage_id = self.item_storage_combo.currentData()
-        owner_id = self.item_owner_combo.currentData()
         serial = self.item_serial_input.text().strip()
         status = self.item_status_combo.currentData()
 
-        if not all([name, category_id, storage_id, owner_id]):
-            QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля")
+        if not all([name, category_id, storage_id]):
+            QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля (клуб, категория, склад)")
             return
 
         try:
@@ -196,7 +214,6 @@ class ItemsTab(BaseTab):
                 "name": name,
                 "category_id": category_id,
                 "storage_id": storage_id,
-                "owner_id": owner_id,
                 "status": status
             }
             if serial:
@@ -247,9 +264,9 @@ class ItemsTab(BaseTab):
     def load_items(self):
         try:
             # One request per entity instead of one per table row
+            club_names = self.fetch_lookup("/clubs", "id", lambda c: c["name"])
             cat_names = self.fetch_lookup("/categories", "id", lambda c: c["title"])
             stor_names = self.fetch_lookup("/storages", "id", lambda s: s["name"])
-            user_names = self.fetch_lookup("/users", "id", lambda u: f"{u['surname']} {u['name']}")
             param_names = self.fetch_lookup("/parameters", "id", lambda p: p["name"])
             value_texts = self.fetch_lookup("/values", "id", lambda v: v["value"])
 
@@ -276,12 +293,11 @@ class ItemsTab(BaseTab):
                 self.items_table.setItem(row, 0, QTableWidgetItem(str(item["id"])))
                 self.items_table.setItem(row, 1, QTableWidgetItem(item["name"]))
                 self.items_table.setItem(
-                    row, 2, QTableWidgetItem(cat_names.get(item["category_id"], "")))
+                    row, 2, QTableWidgetItem(club_names.get(item.get("club_id"), "")))
                 self.items_table.setItem(
-                    row, 3, QTableWidgetItem(stor_names.get(item["storage_id"], "")))
+                    row, 3, QTableWidgetItem(cat_names.get(item["category_id"], "")))
                 self.items_table.setItem(
-                    row, 4, QTableWidgetItem(user_names.get(item["owner_id"], "")))
-
+                    row, 4, QTableWidgetItem(stor_names.get(item["storage_id"], "")))
                 self.items_table.setItem(
                     row, 5, QTableWidgetItem(translate_status(item.get("status", ""))))
                 self.items_table.setItem(row, 6, QTableWidgetItem(item.get("serial_number", "")))

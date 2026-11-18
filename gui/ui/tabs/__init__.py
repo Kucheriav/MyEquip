@@ -14,8 +14,19 @@ STATUS_LABELS = {
 }
 
 
+ROLE_LABELS = {
+    "leader": "Руководитель",
+    "storekeeper": "Завхоз",
+    "tourist": "Турист",
+}
+
+
 def translate_status(status):
     return STATUS_LABELS.get(status, status if isinstance(status, str) else "")
+
+
+def translate_role(role):
+    return ROLE_LABELS.get(role, role if isinstance(role, str) else "")
 
 
 class BaseTab(QWidget):
