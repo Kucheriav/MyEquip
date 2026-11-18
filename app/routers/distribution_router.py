@@ -23,6 +23,8 @@ class DistributionReturnRequest(BaseModel):
     accepter_id: Optional[int] = None
     accepting_date: Optional[date] = None
     comment: Optional[str] = None
+    # Storage the item is put back into; None = keep the current one
+    storage_id: Optional[int] = None
 
 
 def _handle_business_rule(e: BusinessRuleError):
@@ -171,7 +173,9 @@ def return_distribution(
     current_user: User | None = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Accept an item back (sets distribution to 'returned', item to 'available')"""
+    """Accept an item back (sets distribution to 'returned', item to
+    'available'). The item may be put into another storage of the same
+    club; that movement is recorded in the transfer history."""
     _get_visible_distribution(db, current_user, distribution_id)
     try:
         return distribution_service.return_distribution(
@@ -180,6 +184,7 @@ def return_distribution(
             accepter_id=request.accepter_id,
             accepting_date=request.accepting_date or date.today(),
             comment=request.comment,
+            storage_id=request.storage_id,
         )
     except BusinessRuleError as e:
         _handle_business_rule(e)

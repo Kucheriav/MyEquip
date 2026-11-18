@@ -673,7 +673,78 @@ check(
     400,
 )
 
-# ============ 15. Access control & misc ============
+# ============ 15. Acceptance with a storage change ============
+distribution2 = check(
+    "storekeeper issues the item again",
+    requests.post(f"{BASE_URL}/distributions/", headers=sk_auth, json={
+        "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+        "date": today.isoformat(),
+        "expiration_date": (today + timedelta(days=7)).isoformat(),
+        "status": "issued",
+    }),
+    201,
+)
+distribution2_id = distribution2["id"] if distribution2 else None
+
+check(
+    "return into another club's storage rejected with 400",
+    requests.post(f"{BASE_URL}/distributions/{distribution2_id}/return", headers=sk_auth, json={
+        "accepter_id": user_id, "accepting_date": today.isoformat(),
+        "storage_id": storage3_id,
+    }),
+    400,
+)
+
+check(
+    "return with a different storage of the club",
+    requests.post(f"{BASE_URL}/distributions/{distribution2_id}/return", headers=sk_auth, json={
+        "accepter_id": user_id, "accepting_date": today.isoformat(),
+        "storage_id": storage_id, "comment": "вернули на первый склад",
+    }),
+    200,
+)
+returned2_item = requests.get(f"{BASE_URL}/items/{item_id}", headers=sk_auth).json()
+expect("item moved to the chosen storage on return",
+       returned2_item["storage_id"] == storage_id,
+       f"got {returned2_item['storage_id']}, expected {storage_id}")
+expect("item is available after return", returned2_item["status"] == "available",
+       returned2_item["status"])
+
+item_transfers = requests.get(
+    f"{BASE_URL}/transfers/item/{item_id}", headers=sk_auth).json()
+accept_transfers = [
+    t for t in item_transfers
+    if t["from_storage_id"] == storage2_id and t["to_storage_id"] == storage_id
+]
+expect("acceptance with storage change recorded in transfer history",
+       bool(accept_transfers), item_transfers)
+if accept_transfers:
+    record = accept_transfers[-1]
+    expect("transfer on acceptance: mover = giver, receiver = accepter",
+           record["mover_id"] == user_id and record["receiver_id"] == user_id,
+           record)
+
+# Returning without storage_id keeps the current storage
+distribution3 = check(
+    "storekeeper issues the item one more time",
+    requests.post(f"{BASE_URL}/distributions/", headers=sk_auth, json={
+        "item_id": item_id, "giver_id": user_id, "getter_id": user2_id,
+        "date": today.isoformat(), "status": "issued",
+    }),
+    201,
+)
+check(
+    "return without storage_id accepted",
+    requests.post(f"{BASE_URL}/distributions/{distribution3['id']}/return", headers=sk_auth, json={
+        "accepter_id": user_id, "accepting_date": today.isoformat(),
+    }),
+    200,
+)
+returned3_item = requests.get(f"{BASE_URL}/items/{item_id}", headers=sk_auth).json()
+expect("item keeps its storage when none is chosen",
+       returned3_item["storage_id"] == storage_id, returned3_item["storage_id"])
+
+# ============ 16. Access control & misc ============
 check("anonymous read rejected with 401", requests.get(f"{BASE_URL}/clubs"), 401)
 check("wrong password rejected with 401", login(leader_phone, "wrong"), 401)
 check("/health", requests.get(BASE_URL.replace("/api", "") + "/health"))

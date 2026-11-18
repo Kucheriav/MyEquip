@@ -1,14 +1,81 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox, QDateEdit
+    QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox,
+    QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QVBoxLayout
 )
 from PyQt6.QtCore import QDate
 from gui.api.client import APIClient
 from . import BaseTab, translate_status
 
 
+class ReturnDialog(QDialog):
+    """Accepting an issued item back.
+
+    A returned item goes into a storage of its club — by default the one
+    it came from, but the accepter may choose another one.
+    """
+
+    def __init__(self, parent, item: dict, storages: list, users: list):
+        super().__init__(parent)
+        self.setWindowTitle("Приёмка снаряжения")
+        self.resize(420, 260)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.item_label = QLabel(item.get("name", ""))
+        form.addRow("Предмет:", self.item_label)
+
+        self.storage_combo = QComboBox()
+        for storage in storages:
+            self.storage_combo.addItem(storage["name"], storage["id"])
+        # Preselect the item's current storage
+        index = self.storage_combo.findData(item.get("storage_id"))
+        if index >= 0:
+            self.storage_combo.setCurrentIndex(index)
+        form.addRow("Склад:", self.storage_combo)
+
+        self.date_edit = QDateEdit()
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDate(QDate.currentDate())
+        form.addRow("Дата приёмки:", self.date_edit)
+
+        self.accepter_combo = QComboBox()
+        for user in users:
+            self.accepter_combo.addItem(
+                f"{user['surname']} {user['name']}", user["id"])
+        form.addRow("Принял:", self.accepter_combo)
+
+        self.comment_input = QLineEdit()
+        self.comment_input.setPlaceholderText("Комментарий (опционально)")
+        form.addRow("Комментарий:", self.comment_input)
+
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Принять")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def payload(self) -> dict:
+        data = {
+            "accepting_date": self.date_edit.date().toString("yyyy-MM-dd"),
+            "storage_id": self.storage_combo.currentData(),
+        }
+        if self.accepter_combo.currentData() is not None:
+            data["accepter_id"] = self.accepter_combo.currentData()
+        comment = self.comment_input.text().strip()
+        if comment:
+            data["comment"] = comment
+        return data
+
+
 class DistributionsTab(BaseTab):
     def __init__(self):
         super().__init__()
+        self._items_by_id = {}
         self.init_ui()
 
     def init_ui(self):
@@ -25,6 +92,7 @@ class DistributionsTab(BaseTab):
         form.addRow("Получающий:", self.dist_getter_combo)
 
         self.dist_expiration_date = QDateEdit()
+        self.dist_expiration_date.setCalendarPopup(True)
         self.dist_expiration_date.setDate(QDate.currentDate())
         form.addRow("Дата возврата:", self.dist_expiration_date)
 
@@ -40,9 +108,10 @@ class DistributionsTab(BaseTab):
 
         # Table
         self.distributions_table = QTableWidget()
-        self.distributions_table.setColumnCount(8)
+        self.distributions_table.setColumnCount(9)
         self.distributions_table.setHorizontalHeaderLabels(
-            ["ID", "Предмет", "Выдавший", "Получивший", "Дата выдачи", "Возврат до", "Статус", "Действия"]
+            ["ID", "Предмет", "Выдавший", "Получивший", "Дата выдачи",
+             "Возврат до", "Склад", "Статус", "Действия"]
         )
         self.layout.addWidget(QLabel("История выдачи:"))
         self.layout.addWidget(self.distributions_table)
@@ -58,12 +127,12 @@ class DistributionsTab(BaseTab):
 
     def load_items_combo(self):
         try:
-            response = APIClient.get(f"/items")
-            items = response.json()
+            items = APIClient.get("/items").json()
+            self._items_by_id = {item["id"]: item for item in items}
             self.dist_item_combo.clear()
             for item in items:
                 self.dist_item_combo.addItem(item["name"], item["id"])
-        except:
+        except Exception:
             pass
 
     def load_users_combo(self):
@@ -76,7 +145,7 @@ class DistributionsTab(BaseTab):
                 fio = f"{user['surname']} {user['name']}"
                 self.dist_giver_combo.addItem(fio, user["id"])
                 self.dist_getter_combo.addItem(fio, user["id"])
-        except:
+        except Exception:
             pass
 
     def load_data(self):
@@ -123,7 +192,10 @@ class DistributionsTab(BaseTab):
     def load_distributions(self):
         try:
             # One request per entity instead of one per table row
-            item_names = self.fetch_lookup("/items", "id", lambda i: i["name"])
+            items = APIClient.get("/items").json()
+            self._items_by_id = {item["id"]: item for item in items}
+            item_names = {item["id"]: item["name"] for item in items}
+            storage_names = self.fetch_lookup("/storages", "id", lambda s: s["name"])
             user_names = self.fetch_lookup("/users", "id", lambda u: f"{u['surname']} {u['name']}")
 
             response = APIClient.get("/distributions")
@@ -131,6 +203,7 @@ class DistributionsTab(BaseTab):
             self.distributions_table.setRowCount(len(distributions))
 
             for row, dist in enumerate(distributions):
+                item = self._items_by_id.get(dist["item_id"], {})
                 self.distributions_table.setItem(row, 0, QTableWidgetItem(str(dist["id"])))
                 self.distributions_table.setItem(
                     row, 1, QTableWidgetItem(item_names.get(dist["item_id"], "")))
@@ -142,26 +215,53 @@ class DistributionsTab(BaseTab):
                 self.distributions_table.setItem(row, 4, QTableWidgetItem(dist.get("date", "")))
                 self.distributions_table.setItem(row, 5, QTableWidgetItem(dist.get("expiration_date", "")))
                 self.distributions_table.setItem(
-                    row, 6, QTableWidgetItem(translate_status(dist.get("status", ""))))
+                    row, 6, QTableWidgetItem(storage_names.get(item.get("storage_id"), "")))
+                self.distributions_table.setItem(
+                    row, 7, QTableWidgetItem(translate_status(dist.get("status", ""))))
 
-                # Return button
-                return_btn = QPushButton("Вернуть")
-                return_btn.clicked.connect(lambda checked, d_id=dist["id"]: self.return_item(d_id))
-                self.distributions_table.setCellWidget(row, 7, return_btn)
+                # Return button: only while the item is actually out
+                if dist.get("status") != "returned":
+                    return_btn = QPushButton("Принять")
+                    return_btn.clicked.connect(
+                        lambda checked, d_id=dist["id"]: self.return_item(d_id))
+                    self.distributions_table.setCellWidget(row, 8, return_btn)
+                else:
+                    self.distributions_table.setItem(
+                        row, 8, QTableWidgetItem(dist.get("accepting_date") or ""))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))
 
     def return_item(self, distribution_id):
+        """Accept the item back, optionally into another storage."""
         try:
-            data = {
-                "status": "returned",
-                "accepting_date": QDate.currentDate().toString("yyyy-MM-dd")
-            }
-            response = APIClient.put(f"/distributions/{distribution_id}", data)
-            if response.status_code == 200:
-                QMessageBox.information(self, "Успех", "Предмет отмечен как возвращенный")
+            response = APIClient.get(f"/distributions/{distribution_id}")
+            if response.status_code != 200:
+                QMessageBox.warning(self, "Ошибка", response.json().get("detail", "Ошибка"))
+                return
+            distribution = response.json()
+
+            item = self._items_by_id.get(distribution["item_id"])
+            if item is None:
+                item_response = APIClient.get(f"/items/{distribution['item_id']}")
+                if item_response.status_code != 200:
+                    QMessageBox.warning(self, "Ошибка", "Предмет не найден")
+                    return
+                item = item_response.json()
+
+            storages = APIClient.get("/storages").json()
+            storages = [s for s in storages if s.get("club_id") == item.get("club_id")]
+            users = APIClient.get("/users").json()
+
+            dialog = ReturnDialog(self, item, storages, users)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            result = APIClient.post(
+                f"/distributions/{distribution_id}/return", dialog.payload())
+            if result.status_code == 200:
+                QMessageBox.information(self, "Успех", "Снаряжение принято")
                 self.load_distributions()
             else:
-                QMessageBox.warning(self, "Ошибка", "Ошибка при возврате")
+                QMessageBox.warning(self, "Ошибка", result.json().get("detail", "Ошибка"))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка подключения", str(e))
