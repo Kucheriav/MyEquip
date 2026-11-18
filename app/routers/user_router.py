@@ -13,9 +13,15 @@ user_crud = UserCRUD()
 @router.post("/", response_model=UserResponse, status_code=201)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     """Create a new user"""
-    db_user = user_crud.get_by_email(db, email=user.email)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # Email is optional: only check for duplicates when one is given
+    if user.email:
+        db_user = user_crud.get_by_email(db, email=user.email)
+        if db_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+    # Phone is unique in the DB; answer with a readable error instead of
+    # a 500 IntegrityError
+    if user_crud.get_by_phone(db, phone=user.phone):
+        raise HTTPException(status_code=400, detail="This phone number is already registered")
     return user_crud.create(db, obj_in=user)
 
 

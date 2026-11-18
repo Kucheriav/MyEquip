@@ -195,6 +195,46 @@ else:
     print(f"FAIL  phone hijack attempt: {hijack.status_code} (expected 400)")
     failures.append("protected phone hijack")
 
+# Two tourists without email must both be creatable (email is optional;
+# NULL emails must not collide with each other)
+no_email_1 = check(
+    "leader records tourist #1 without email",
+    requests.post(f"{BASE_URL}/users/", headers=auth, json={
+        "name": "Без", "surname": "Почты-1", "phone": f"+7905{stamp[-7:]}",
+        "email": None, "status": "guest",
+    }),
+    201,
+)
+no_email_2 = requests.post(f"{BASE_URL}/users/", headers=auth, json={
+    "name": "Без", "surname": "Почты-2", "phone": f"+7906{stamp[-7:]}",
+    "email": None, "status": "guest",
+})
+expect(
+    "leader records tourist #2 without email (no false duplicate)",
+    no_email_2.status_code == 201,
+    no_email_2.status_code,
+)
+
+dup_email = requests.post(f"{BASE_URL}/users/", headers=auth, json={
+    "name": "Дубль", "surname": "Почты", "phone": f"+7907{stamp[-7:]}",
+    "email": f"boris-new-{stamp}@example.com", "status": "guest",
+})
+expect(
+    "duplicate email rejected with 400",
+    dup_email.status_code == 400,
+    dup_email.status_code,
+)
+
+dup_phone = requests.post(f"{BASE_URL}/users/", headers=auth, json={
+    "name": "Дубль", "surname": "Телефона", "phone": f"+7905{stamp[-7:]}",
+    "email": None, "status": "guest",
+})
+expect(
+    "duplicate phone rejected with readable 400",
+    dup_phone.status_code == 400,
+    dup_phone.status_code,
+)
+
 # ============ 5. Domain workflow (authenticated) ============
 # 5.1 Club
 club = check("create club", requests.post(f"{BASE_URL}/clubs/", headers=auth, json={"name": f"test-club-{stamp}"}), 201)

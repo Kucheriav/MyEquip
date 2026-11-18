@@ -9,6 +9,11 @@ class UserCRUD(BaseCRUD[User, UserCreate, UserUpdate]):
         super().__init__(User)
 
     def get_by_email(self, db: Session, email: str) -> User:
+        # An empty email means "no email set". Without this guard
+        # `User.email == None` renders `email IS NULL` and matches any
+        # user without an email (e.g. the very user being created).
+        if not email:
+            return None
         return db.query(User).filter(User.email == email).first()
 
     def get_by_phone(self, db: Session, phone: str) -> User:

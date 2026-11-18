@@ -40,7 +40,12 @@ class UsersTab(BaseTab):
         form.addRow("Пароль:", self.user_password_input)
 
         self.user_status_combo = QComboBox()
-        self.user_status_combo.addItems(["guest", "unverified", "full"])
+        for label, code in [
+            ("Гость", "guest"),
+            ("Не подтверждён", "unverified"),
+            ("Подтверждён", "full"),
+        ]:
+            self.user_status_combo.addItem(label, code)
         form.addRow("Статус:", self.user_status_combo)
 
         add_user_btn = QPushButton("Добавить пользователя")
@@ -72,7 +77,7 @@ class UsersTab(BaseTab):
         email = self.user_email_input.text().strip()
         phone = self.user_phone_input.text().strip()
         password = self.user_password_input.text()
-        status = self.user_status_combo.currentText()
+        status = self.user_status_combo.currentData()
 
         if not all([name, surname, phone]):
             QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля (имя, фамилия, телефон)")
