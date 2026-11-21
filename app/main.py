@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from app.database import create_all_tables
 from app.bootstrap import bootstrap_invite_if_empty
 from app.routers import (
@@ -8,6 +10,8 @@ from app.routers import (
     breakdown_router, item_parameter_value_router, transfer_router,
     auth_router, invite_router,
 )
+from app.web.auth import WebAuthRequired, login_redirect
+from app.web.routes import router as web_router
 
 # Create FastAPI application
 app = FastAPI(
@@ -43,6 +47,20 @@ app.include_router(item_parameter_value_router.router)
 app.include_router(transfer_router.router)
 app.include_router(auth_router.router)
 app.include_router(invite_router.router)
+
+# Web UI: server-rendered pages that talk to the API above
+app.include_router(web_router)
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).parent / "web" / "static")),
+    name="static",
+)
+
+
+@app.exception_handler(WebAuthRequired)
+async def web_auth_required(request, exc):
+    """Pages redirect to the login form; API endpoints keep returning 401."""
+    return login_redirect(request)
 
 
 @app.get("/", tags=["root"])

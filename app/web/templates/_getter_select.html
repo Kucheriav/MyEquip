@@ -1,0 +1,6 @@
+<select name="getter_id" id="getter-select">
+  {% for member in getters %}
+  <option value="{{ member.id }}">{{ member.surname }} {{ member.name }}</option>
+  {% endfor %}
+</select>
+{% if not getters %}<span class="hint">В клубе этой вещи нет получателей</span>{% endif %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — MyEquip{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="card">
+    <h1>Регистрация по приглашению</h1>
+    <p class="hint">
+      Код приглашения выдаёт руководитель клуба. Если вас уже записали как
+      туриста, используйте свой телефон — история сохранится.
+    </p>
+
+    {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
+    <form method="post" action="/register">
+      <label class="field">
+        <span>Код приглашения</span>
+        <input type="text" name="invite_code" value="{{ (form or {}).get('invite_code', '') }}" required autofocus>
+      </label>
+      <label class="field">
+        <span>Фамилия</span>
+        <input type="text" name="surname" value="{{ (form or {}).get('surname', '') }}" required>
+      </label>
+      <label class="field">
+        <span>Имя</span>
+        <input type="text" name="name" value="{{ (form or {}).get('name', '') }}" required>
+      </label>
+      <label class="field">
+        <span>Телефон</span>
+        <input type="text" name="phone" value="{{ (form or {}).get('phone', '') }}" placeholder="+7..." required>
+      </label>
+      <label class="field">
+        <span>Почта (необязательно)</span>
+        <input type="email" name="email" value="{{ (form or {}).get('email', '') }}">
+      </label>
+      <label class="field">
+        <span>Дата рождения (необязательно)</span>
+        <input type="date" name="date_of_birth">
+      </label>
+      <label class="field">
+        <span>Пароль</span>
+        <input type="password" name="password" autocomplete="new-password" required>
+      </label>
+      <button type="submit">Зарегистрироваться</button>
+    </form>
+
+    <div class="auth-links">
+      Уже есть аккаунт? <a href="/login">Войти</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

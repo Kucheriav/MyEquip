@@ -18,6 +18,8 @@ class Config(BaseSettings):
     SECRET_KEY: str = "dev-secret-change-me"
     AUTH_ENABLED: bool = False
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    # Web UI: mark the session cookie Secure when served over HTTPS
+    WEB_COOKIE_SECURE: bool = False
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")

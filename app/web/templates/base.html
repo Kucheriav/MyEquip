@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}MyEquip{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <a class="brand" href="/app/items">MyEquip</a>
+  <nav>
+    <a href="/app/items" class="{{ 'active' if active == 'items' }}">Снаряжение</a>
+    <a href="/app/distributions" class="{{ 'active' if active == 'distributions' }}">Выдачи</a>
+  </nav>
+  <div class="who">
+    <span>{{ user.surname }} {{ user.name }}</span>
+    <span class="role">{{ translate_role(user.role) }}</span>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="link" type="submit">Выйти</button>
+    </form>
+  </div>
+</header>
+{% endif %}
+
+<main class="page">
+  {% if ok %}<div class="flash ok">{{ ok }}</div>{% endif %}
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

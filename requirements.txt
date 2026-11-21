@@ -9,4 +9,7 @@ cryptography
 bcrypt
 pyjwt
 requests
+jinja2
+httpx
+python-multipart
 PyQt6

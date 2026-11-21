@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Снаряжение — MyEquip{% endblock %}
+{% block content %}
+<h1>Снаряжение</h1>
+
+{% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
+
+<div class="card">
+  <form method="get" action="/app/items" class="grid">
+    <label class="field">
+      <span>Клуб</span>
+      <select name="club_id">
+        <option value="">Все клубы</option>
+        {% for club in clubs %}
+        <option value="{{ club.id }}" {{ 'selected' if filters.club_id == club.id }}>{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field">
+      <span>Склад</span>
+      <select name="storage_id">
+        <option value="">Все склады</option>
+        {% for storage in storages %}
+        <option value="{{ storage.id }}" {{ 'selected' if filters.storage_id == storage.id }}>{{ storage.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field">
+      <span>Статус</span>
+      <select name="status">
+        <option value="">Любой</option>
+        {% for status in statuses %}
+        <option value="{{ status }}" {{ 'selected' if filters.status == status }}>{{ translate_status(status) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="grid">
+      <button type="submit">Показать</button>
+      <a class="button secondary" href="/app/items">Сбросить</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Всего: {{ items|length }}</h2>
+  {% if items %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Название</th>
+          <th>Клуб</th>
+          <th>Категория</th>
+          <th>Склад</th>
+          <th>Статус</th>
+          <th>Серийный номер</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.id }}</td>
+          <td>{{ item.name }}</td>
+          <td>{{ club_names.get(item.club_id, '—') }}</td>
+          <td>{{ category_names.get(item.category_id, '—') }}</td>
+          <td>{{ storage_names.get(item.storage_id, '—') }}</td>
+          <td><span class="badge {{ item.status }}">{{ translate_status(item.status) }}</span></td>
+          <td>{{ item.serial_number or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">По этим условиям снаряжения нет.</p>
+  {% endif %}
+</div>
+{% endblock %}
