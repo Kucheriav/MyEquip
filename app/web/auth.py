@@ -18,6 +18,7 @@ from app.web import bff
 
 SESSION_COOKIE = "myequip_session"
 CSRF_COOKIE = "myequip_csrf"
+INVITE_FLASH_COOKIE = "myequip_new_invite"
 
 
 class WebAuthRequired(Exception):
@@ -83,3 +84,19 @@ def start_session(response, token: str) -> None:
 def end_session(response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
+
+
+def set_invite_flash(response, code: str) -> None:
+    """Hand a freshly generated invite code to the next page load.
+
+    The code travels in a short-lived HttpOnly cookie instead of the URL,
+    so it does not end up in browser history or access logs.
+    """
+    response.set_cookie(
+        INVITE_FLASH_COOKIE, code, max_age=300, path="/",
+        httponly=True, samesite="lax", secure=config.WEB_COOKIE_SECURE,
+    )
+
+
+def clear_invite_flash(response) -> None:
+    response.delete_cookie(INVITE_FLASH_COOKIE, path="/")

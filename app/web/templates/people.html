@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Люди — MyEquip{% endblock %}
+{% block content %}
+<h1>Люди</h1>
+
+<div class="card">
+  <form method="get" action="/app/people" class="grid">
+    <label class="field">
+      <span>Клуб</span>
+      <select name="club_id">
+        <option value="">Все мои клубы</option>
+        {% for club in clubs %}
+        <option value="{{ club.id }}" {{ 'selected' if selected_club_id == club.id }}>{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="grid">
+      <button type="submit">Показать</button>
+      <a class="button secondary" href="/app/people">Сбросить</a>
+    </div>
+  </form>
+</div>
+
+{% if is_leader %}
+<div class="card">
+  <h2>Добавить туриста</h2>
+  <p class="hint">
+    Пароль здесь не задаётся: человек сам зарегистрируется по коду
+    приглашения и получит доступ к вебу. История по телефону сохранится.
+  </p>
+  <form method="post" action="/app/people" class="issue-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Клуб</span>
+      <select name="club_id">
+        {% for club in clubs %}
+        <option value="{{ club.id }}" {{ 'selected' if selected_club_id == club.id }}>{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Фамилия</span>
+      <input type="text" name="surname" required>
+    </label>
+
+    <label class="field">
+      <span>Имя</span>
+      <input type="text" name="name" required>
+    </label>
+
+    <label class="field">
+      <span>Отчество</span>
+      <input type="text" name="last_name">
+    </label>
+
+    <label class="field">
+      <span>Телефон</span>
+      <input type="text" name="phone" placeholder="+7..." required>
+    </label>
+
+    <label class="field">
+      <span>Почта (необязательно)</span>
+      <input type="email" name="email">
+    </label>
+
+    <label class="field">
+      <span>Дата рождения (необязательно)</span>
+      <input type="date" name="date_of_birth">
+    </label>
+
+    <label class="field">
+      <span>Статус</span>
+      <select name="status">
+        {% for code, label in statuses %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit">Добавить</button>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <p class="hint">Добавлять и менять людей может только руководитель клуба.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Всего: {{ rows|length }}</h2>
+  {% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
+  {% if rows %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ФИО</th>
+          <th>Клубы</th>
+          <th>Телефон</th>
+          <th>Почта</th>
+          <th>Статус</th>
+          <th>Роль</th>
+          {% if is_leader %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.surname }} {{ row.name }} {{ row.last_name or '' }}</td>
+          <td>{{ row.clubs_text or '—' }}</td>
+          <td>{{ row.phone }}</td>
+          <td>{{ row.email or '—' }}</td>
+          <td><span class="badge {{ row.status }}">{{ translate_status(row.status) }}</span></td>
+          <td>{{ translate_role(row.role) }}</td>
+          {% if is_leader %}
+          <td><a class="button secondary" href="/app/people/{{ row.id }}/edit">Изменить</a></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Людей пока нет.</p>
+  {% endif %}
+</div>
+{% endblock %}

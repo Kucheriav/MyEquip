@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Клубы — MyEquip{% endblock %}
+{% block content %}
+<h1>Клубы</h1>
+
+{% if is_leader %}
+<div class="card">
+  <h2>Добавить клуб</h2>
+  <p class="hint">Вы станете руководителем нового клуба.</p>
+  <form method="post" action="/app/clubs" class="grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="field" style="flex:1 0 260px">
+      <span>Название</span>
+      <input type="text" name="name" placeholder="Название клуба" required>
+    </label>
+    <button type="submit">Добавить клуб</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Мои клубы</h2>
+  {% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
+  {% if rows %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Название</th>
+          <th>Моя роль</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+          <td><span class="badge {{ row.my_role }}">{{ translate_role(row.my_role) }}</span></td>
+          <td>
+            {% if row.can_manage %}
+            <a class="button secondary" href="/app/team?club_id={{ row.id }}">Доступ</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Вы пока не состоите ни в одном клубе.</p>
+  {% endif %}
+</div>
+{% endblock %}

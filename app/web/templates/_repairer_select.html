@@ -1,0 +1,7 @@
+<select name="repairer_id" id="repairer-select">
+  <option value="">Нет</option>
+  {% for member in repairers %}
+  <option value="{{ member.id }}">{{ member.surname }} {{ member.name }}</option>
+  {% endfor %}
+</select>
+{% if not repairers %}<span class="hint">В клубе этой вещи нет сотрудников</span>{% endif %}

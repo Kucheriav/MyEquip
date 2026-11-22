@@ -13,6 +13,7 @@ forms cannot override the "executor is the logged-in user" rule.
 import sys
 from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -176,7 +177,322 @@ def main():
     text_page = browser.get(f"{BASE_URL}/app/distributions")
     check("history shows the returned status in Russian", "Возвращён" in text_page.text)
 
-    # ---------- 5. Protection ----------
+    # ---------- 5. Transfers through the web form ----------
+    transfers_page = browser.get(f"{BASE_URL}/app/transfers")
+    expect("transfers page renders", transfers_page, 200)
+    check("transfers page shows the current storage", "Веб-склад 2" in transfers_page.text)
+
+    targets = browser.get(f"{BASE_URL}/app/transfers/targets", params={"item_id": item_id})
+    check("HTMX transfer fragment offers the other club storage",
+          targets.status_code == 200 and "Веб-склад 1" in targets.text
+          and "Веб-склад 2" not in targets.text.split("На склад")[-1],
+          targets.text[:300])
+
+    moved = browser.post(f"{BASE_URL}/app/transfers", allow_redirects=False, data={
+        "item_id": item_id,
+        "to_storage_id": storage1["id"],
+        "comment": "веб-перемещение",
+        "csrf_token": csrf,
+        "mover_id": tourist_id,  # must be ignored
+    })
+    check("transfer redirects back with a success flash",
+          moved.status_code == 303 and "ok=transferred" in moved.headers.get("location", ""),
+          f"{moved.status_code} {moved.headers.get('location')}")
+
+    transfers = api.get(f"{BASE_URL}/api/transfers/", headers=auth).json()
+    transfer = max(transfers, key=lambda row: row["id"])
+    check("transfer is stored with the logged-in leader as mover",
+          transfer["mover_id"] == leader_id
+          and transfer["to_storage_id"] == storage1["id"],
+          transfer)
+    item_after_transfer = api.get(f"{BASE_URL}/api/items/{item_id}", headers=auth).json()
+    check("item physically moved to the destination storage",
+          item_after_transfer["storage_id"] == storage1["id"], item_after_transfer)
+
+    bad_move = browser.post(f"{BASE_URL}/app/transfers", allow_redirects=False, data={
+        "item_id": item_id, "to_storage_id": storage1["id"], "csrf_token": csrf,
+    })
+    check("moving to the same storage is refused with a message",
+          bad_move.status_code == 303 and "error=" in bad_move.headers.get("location", ""),
+          f"{bad_move.status_code} {bad_move.headers.get('location')}")
+
+    # ---------- 6. Breakdowns through the web form ----------
+    breakdowns_page = browser.get(f"{BASE_URL}/app/breakdowns")
+    expect("breakdowns page renders", breakdowns_page, 200)
+
+    repairer_fragment = browser.get(
+        f"{BASE_URL}/app/breakdowns/repairers", params={"item_id": item_id})
+    check("HTMX repairer fragment lists the club staff",
+          repairer_fragment.status_code == 200 and "Лидер" in repairer_fragment.text,
+          repairer_fragment.text[:300])
+
+    reported = browser.post(f"{BASE_URL}/app/breakdowns", allow_redirects=False, data={
+        "item_id": item_id,
+        "comment": "порвалась лямка",
+        "csrf_token": csrf,
+    })
+    check("breakdown redirects back with a success flash",
+          reported.status_code == 303
+          and "ok=breakdown_reported" in reported.headers.get("location", ""),
+          f"{reported.status_code} {reported.headers.get('location')}")
+
+    breakdowns = api.get(f"{BASE_URL}/api/breakdowns/", headers=auth).json()
+    breakdown = max(breakdowns, key=lambda row: row["id"])
+    check("breakdown is stored for the item", breakdown["item_id"] == item_id, breakdown)
+    item_after_breakdown = api.get(f"{BASE_URL}/api/items/{item_id}", headers=auth).json()
+    check("item goes into maintenance", item_after_breakdown["status"] == "maintenance",
+          item_after_breakdown["status"])
+
+    repaired = browser.post(
+        f"{BASE_URL}/app/breakdowns/{breakdown['id']}/repair",
+        allow_redirects=False, data={"repaired_date": date.today().isoformat(),
+                                     "csrf_token": csrf})
+    check("repair redirects back with a success flash",
+          repaired.status_code == 303
+          and "ok=breakdown_repaired" in repaired.headers.get("location", ""),
+          f"{repaired.status_code} {repaired.headers.get('location')}")
+
+    breakdown_after = api.get(
+        f"{BASE_URL}/api/breakdowns/{breakdown['id']}", headers=auth).json()
+    check("breakdown carries the logged-in leader as repairer",
+          breakdown_after["repaired_date"] == date.today().isoformat()
+          and breakdown_after["repairer_id"] == leader_id,
+          breakdown_after)
+    item_after_repair = api.get(f"{BASE_URL}/api/items/{item_id}", headers=auth).json()
+    check("item is available again after the repair",
+          item_after_repair["status"] == "available", item_after_repair["status"])
+
+    # ---------- 7. People, clubs and access ----------
+    people_page = browser.get(f"{BASE_URL}/app/people")
+    expect("people page renders", people_page, 200)
+    check("people page lists the club member", "Турист" in people_page.text)
+    check("people page offers the add form", "Добавить туриста" in people_page.text)
+
+    new_phone = f"+7666{STAMP[-7:]}"
+    created_person = browser.post(f"{BASE_URL}/app/people", allow_redirects=False, data={
+        "club_id": club_id,
+        "surname": "Новый",
+        "name": "Человек",
+        "phone": new_phone,
+        "status": "guest",
+        "csrf_token": csrf,
+    })
+    check("person is added through the web form",
+          created_person.status_code == 303
+          and "ok=person_created" in created_person.headers.get("location", ""),
+          f"{created_person.status_code} {created_person.headers.get('location')}")
+
+    users = api.get(f"{BASE_URL}/api/users/", headers=auth).json()
+    new_person = next((entry for entry in users if entry["phone"] == new_phone), None)
+    check("the new person belongs to the club",
+          new_person is not None
+          and any(m["club_id"] == club_id and m["role"] == "tourist"
+                  for m in new_person["memberships"]),
+          new_person)
+    new_person_id = new_person["id"] if new_person else 0
+
+    edit_page = browser.get(f"{BASE_URL}/app/people/{new_person_id}/edit")
+    expect("person edit page renders", edit_page, 200)
+    check("person edit page is prefilled", "Новый" in edit_page.text)
+
+    updated_person = browser.post(
+        f"{BASE_URL}/app/people/{new_person_id}", allow_redirects=False, data={
+            "surname": "Обновлённый", "name": "Человек", "phone": new_phone,
+            "status": "full", "csrf_token": csrf,
+        })
+    check("person is updated through the web form",
+          updated_person.status_code == 303
+          and "ok=person_updated" in updated_person.headers.get("location", ""),
+          f"{updated_person.status_code} {updated_person.headers.get('location')}")
+    person_after = api.get(f"{BASE_URL}/api/users/{new_person_id}", headers=auth).json()
+    check("person changes are saved", person_after["surname"] == "Обновлённый"
+          and person_after["status"] == "full", person_after)
+
+    clubs_page = browser.get(f"{BASE_URL}/app/clubs")
+    expect("clubs page renders", clubs_page, 200)
+    check("clubs page lists the club", f"web-club-{STAMP}" in clubs_page.text)
+
+    second_club_name = f"web-club-2-{STAMP}"
+    created_club = browser.post(f"{BASE_URL}/app/clubs", allow_redirects=False,
+                                data={"name": second_club_name, "csrf_token": csrf})
+    check("club is created through the web form",
+          created_club.status_code == 303
+          and "ok=club_created" in created_club.headers.get("location", ""),
+          f"{created_club.status_code} {created_club.headers.get('location')}")
+    clubs = api.get(f"{BASE_URL}/api/clubs/", headers=auth).json()
+    check("the new club exists and is led by the leader",
+          any(club["name"] == second_club_name for club in clubs), clubs)
+
+    team_page = browser.get(f"{BASE_URL}/app/team", params={"club_id": club_id})
+    expect("access page renders for a leader", team_page, 200)
+    check("access page offers invite buttons",
+          "Инвайт для завхоза" in team_page.text and "Инвайт для нового руководителя" in team_page.text)
+
+    invite_created = browser.post(
+        f"{BASE_URL}/app/team/invite-storekeeper", allow_redirects=False,
+        data={"club_id": club_id, "csrf_token": csrf})
+    check("storekeeper invite is created through the web form",
+          invite_created.status_code == 303
+          and "ok=invite_created" in invite_created.headers.get("location", ""),
+          f"{invite_created.status_code} {invite_created.headers.get('location')}")
+    web_invite = browser.cookies.get("myequip_new_invite") or ""
+    check("the new invite code is handed over in a cookie", bool(web_invite), web_invite)
+
+    invite_page = browser.get(f"{BASE_URL}/app/team", params={"club_id": club_id})
+    check("the new code is shown once on the page",
+          web_invite and web_invite in invite_page.text
+          and "Новый код приглашения" in invite_page.text)
+    check("the one-shot invite cookie is cleared",
+          browser.cookies.get("myequip_new_invite") in (None, ""))
+
+    # ---------- 8. Catalog: storages, categories, properties ----------
+    storages_page = browser.get(f"{BASE_URL}/app/storages")
+    expect("storages page renders", storages_page, 200)
+    check("storages page lists a club storage", "Веб-склад 1" in storages_page.text)
+
+    new_storage_name = f"Веб-склад 3-{STAMP}"
+    created_storage = browser.post(f"{BASE_URL}/app/storages", allow_redirects=False,
+                                   data={"club_id": club_id, "name": new_storage_name,
+                                         "address": "пер. Тестовый, 1",
+                                         "csrf_token": csrf})
+    check("storage is created through the web form",
+          created_storage.status_code == 303
+          and "ok=storage_created" in created_storage.headers.get("location", ""),
+          f"{created_storage.status_code} {created_storage.headers.get('location')}")
+    storages_api = api.get(f"{BASE_URL}/api/storages/", headers=auth).json()
+    check("the new storage exists in the club",
+          any(s["name"] == new_storage_name and s["club_id"] == club_id
+              for s in storages_api), storages_api)
+
+    categories_page = browser.get(f"{BASE_URL}/app/categories")
+    expect("categories page renders", categories_page, 200)
+    check("categories page lists the club category", "Веб-категория" in categories_page.text)
+
+    category_title = f"Веб-палатки-{STAMP}"
+    created_category = browser.post(f"{BASE_URL}/app/categories", allow_redirects=False,
+                                    data={"club_id": club_id, "title": category_title,
+                                          "csrf_token": csrf})
+    check("category is created through the web form",
+          created_category.status_code == 303
+          and "ok=category_created" in created_category.headers.get("location", ""),
+          f"{created_category.status_code} {created_category.headers.get('location')}")
+    new_category_id = int(parse_qs(urlparse(
+        created_category.headers.get("location", "")).query).get("category_id", ["0"])[0])
+    categories_api = api.get(f"{BASE_URL}/api/categories/", headers=auth).json()
+    check("the new category exists",
+          any(c["id"] == new_category_id and c["title"] == category_title
+              for c in categories_api), categories_api)
+
+    attached = browser.post(
+        f"{BASE_URL}/app/categories/{new_category_id}/parameters",
+        allow_redirects=False,
+        data={"name": "Состояние", "param_type": "str",
+              "variants": "новое, б/у", "csrf_token": csrf})
+    check("property is attached to the category through the web form",
+          attached.status_code == 303
+          and "ok=parameter_attached" in attached.headers.get("location", ""),
+          f"{attached.status_code} {attached.headers.get('location')}")
+
+    parameters_api = api.get(
+        f"{BASE_URL}/api/categories/{new_category_id}/parameters", headers=auth).json()
+    state_param = next((p for p in parameters_api if p["name"] == "Состояние"), None)
+    check("the category has the new property", state_param is not None, parameters_api)
+    state_values = api.get(
+        f"{BASE_URL}/api/values/parameter/{state_param['id']}", headers=auth).json()
+    check("the property variants are stored",
+          {v["value"] for v in state_values} == {"новое", "б/у"}, state_values)
+
+    extra = browser.post(
+        f"{BASE_URL}/app/categories/{new_category_id}/parameters",
+        allow_redirects=False,
+        data={"name": "Лишнее", "param_type": "str", "csrf_token": csrf})
+    check("a second property can be attached", extra.status_code == 303)
+    parameters_api = api.get(
+        f"{BASE_URL}/api/categories/{new_category_id}/parameters", headers=auth).json()
+    extra_param = next((p for p in parameters_api if p["name"] == "Лишнее"), None)
+    check("the second property is attached", extra_param is not None, parameters_api)
+    detached = browser.post(
+        f"{BASE_URL}/app/categories/{new_category_id}/parameters/{extra_param['id']}/detach",
+        allow_redirects=False, data={"csrf_token": csrf})
+    check("property is detached from the category through the web form",
+          detached.status_code == 303
+          and "ok=parameter_detached" in detached.headers.get("location", ""),
+          f"{detached.status_code} {detached.headers.get('location')}")
+    parameters_api = api.get(
+        f"{BASE_URL}/api/categories/{new_category_id}/parameters", headers=auth).json()
+    check("the detached property is gone",
+          not any(p["name"] == "Лишнее" for p in parameters_api), parameters_api)
+
+    # ---------- 9. Item create and edit with properties ----------
+    item_form = browser.get(f"{BASE_URL}/app/items/new",
+                            params={"club_id": club_id, "category_id": new_category_id})
+    expect("item form renders", item_form, 200)
+    check("item form shows the dynamic property",
+          "Состояние" in item_form.text and "новое" in item_form.text)
+
+    new_item_name = f"Веб-палатка-{STAMP}"
+    created_item = browser.post(f"{BASE_URL}/app/items", allow_redirects=False, data={
+        "name": new_item_name,
+        "category_id": new_category_id,
+        "storage_id": storage1["id"],
+        "status": "available",
+        "serial_number": f"SN-{STAMP}",
+        f"value_{state_param['id']}": next(
+            v["id"] for v in state_values if v["value"] == "новое"),
+        "csrf_token": csrf,
+    })
+    check("item is created through the web form",
+          created_item.status_code == 303
+          and "ok=item_created" in created_item.headers.get("location", ""),
+          f"{created_item.status_code} {created_item.headers.get('location')}")
+
+    items_api = api.get(f"{BASE_URL}/api/items/", headers=auth).json()
+    new_item = next((i for i in items_api if i["name"] == new_item_name), None)
+    check("the new item belongs to the club and storage",
+          new_item is not None and new_item["club_id"] == club_id
+          and new_item["storage_id"] == storage1["id"], new_item)
+    new_item_id = new_item["id"] if new_item else 0
+
+    item_params_api = api.get(
+        f"{BASE_URL}/api/item-parameters/item/{new_item_id}", headers=auth).json()
+    chosen_value = next(v["id"] for v in state_values if v["value"] == "новое")
+    check("the item stores the chosen property value",
+          any(p["parameter_id"] == state_param["id"] and p["value_id"] == chosen_value
+              for p in item_params_api), item_params_api)
+
+    list_page = browser.get(f"{BASE_URL}/app/items")
+    check("the items list shows the property in Russian",
+          new_item_name in list_page.text and "Состояние — новое" in list_page.text)
+
+    edit_form = browser.get(f"{BASE_URL}/app/items/{new_item_id}/edit")
+    expect("item edit form renders", edit_form, 200)
+    check("item edit form is prefilled", new_item_name in edit_form.text)
+
+    updated_item_name = f"{new_item_name}-2"
+    updated_item = browser.post(f"{BASE_URL}/app/items/{new_item_id}",
+                                allow_redirects=False, data={
+        "name": updated_item_name,
+        "category_id": new_category_id,
+        "storage_id": storage1["id"],
+        "status": "maintenance",
+        "serial_number": f"SN-{STAMP}",
+        f"value_{state_param['id']}": chosen_value,
+        "csrf_token": csrf,
+    })
+    check("item is updated through the web form",
+          updated_item.status_code == 303
+          and "ok=item_updated" in updated_item.headers.get("location", ""),
+          f"{updated_item.status_code} {updated_item.headers.get('location')}")
+    item_after_edit = api.get(f"{BASE_URL}/api/items/{new_item_id}", headers=auth).json()
+    check("item changes are saved", item_after_edit["name"] == updated_item_name
+          and item_after_edit["status"] == "maintenance", item_after_edit)
+    item_params_after = api.get(
+        f"{BASE_URL}/api/item-parameters/item/{new_item_id}", headers=auth).json()
+    check("item properties survive the edit",
+          any(p["parameter_id"] == state_param["id"] and p["value_id"] == chosen_value
+              for p in item_params_after), item_params_after)
+
+    # ---------- 10. Protection ----------
     no_csrf = browser.post(f"{BASE_URL}/app/distributions", allow_redirects=False, data={
         "item_id": item_id, "getter_id": tourist_id,
         "expiration_date": date.today().isoformat(),
@@ -190,15 +506,13 @@ def main():
           bad_login.status_code == 401 and "myequip_session" not in bad_login.cookies,
           bad_login.status_code)
 
-    # ---------- 6. Storekeeper gets staff pages ----------
-    invite_resp = api.post(f"{BASE_URL}/api/invites/", headers=auth,
-                           json={"role": "storekeeper", "club_id": club_id})
-    expect("leader creates a storekeeper invite", invite_resp, 201)
+    # ---------- 11. Storekeeper access ----------
+    expect("leader creates a storekeeper invite", invite_created, 303)
     sk_phone = f"+7777{STAMP[-7:]}"
     expect("storekeeper registers with the invite", api.post(
         f"{BASE_URL}/api/auth/register", json={
             "name": "Склад", "surname": "Завхозов", "phone": sk_phone,
-            "password": "Web-pass2", "invite_code": invite_resp.json()["code"],
+            "password": "Web-pass2", "invite_code": web_invite,
         }), 201)
 
     sk_browser = requests.Session()
@@ -211,6 +525,41 @@ def main():
     sk_page = sk_browser.get(f"{BASE_URL}/app/items")
     expect("storekeeper sees the equipment page", sk_page, 200)
     check("storekeeper sees the club equipment", "Веб-рюкзак" in sk_page.text)
+
+    sk_users = api.get(f"{BASE_URL}/api/users/", headers=auth).json()
+    sk_person = next((entry for entry in sk_users if entry["phone"] == sk_phone), None)
+    sk_id = sk_person["id"] if sk_person else 0
+
+    team_with_sk = browser.get(f"{BASE_URL}/app/team", params={"club_id": club_id})
+    check("access page lists the new storekeeper", "Завхозов" in team_with_sk.text)
+    check("invite history marks the code as used", web_invite in team_with_sk.text)
+
+    granted = browser.post(
+        f"{BASE_URL}/app/team/storekeepers", allow_redirects=False,
+        data={"club_id": club_id, "user_id": new_person_id, "csrf_token": csrf})
+    check("leader grants storekeeper rights through the web form",
+          granted.status_code == 303
+          and "ok=member_added" in granted.headers.get("location", ""),
+          f"{granted.status_code} {granted.headers.get('location')}")
+    members = api.get(f"{BASE_URL}/api/clubs/{club_id}/members", headers=auth).json()
+    check("the granted person is a storekeeper of the club",
+          any(m["user_id"] == new_person_id and m["role"] == "storekeeper" for m in members),
+          members)
+
+    removed = browser.post(
+        f"{BASE_URL}/app/team/storekeepers/{club_id}/{sk_id}/remove",
+        allow_redirects=False, data={"csrf_token": csrf})
+    check("leader removes a storekeeper through the web form",
+          removed.status_code == 303
+          and "ok=member_removed" in removed.headers.get("location", ""),
+          f"{removed.status_code} {removed.headers.get('location')}")
+    members_after = api.get(f"{BASE_URL}/api/clubs/{club_id}/members", headers=auth).json()
+    check("the removed person is no longer in the club",
+          not any(m["user_id"] == sk_id for m in members_after), members_after)
+
+    sk_after_removal = sk_browser.get(f"{BASE_URL}/app/items")
+    check("a person without a staff role sees the tourist stub",
+          "Доступ пока только для сотрудников клуба" in sk_after_removal.text)
 
     logout = browser.post(f"{BASE_URL}/logout", allow_redirects=False)
     check("logout clears the session",

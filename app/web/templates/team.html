@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Доступ — MyEquip{% endblock %}
+{% block content %}
+<h1>Доступ</h1>
+
+{% if created_invite %}
+<div class="card" style="border-color:#bfe3cc;background:var(--ok-bg)">
+  <h2>Новый код приглашения</h2>
+  <p>Передайте код человеку один раз — после регистрации он станет недействителен.</p>
+  <p style="font-size:22px;font-weight:700;letter-spacing:.08em">{{ created_invite }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Клуб</h2>
+  <form method="get" action="/app/team" class="grid">
+    <label class="field">
+      <span>Выберите клуб</span>
+      <select name="club_id" onchange="this.form.submit()">
+        {% for club in clubs %}
+        <option value="{{ club.id }}" {{ 'selected' if selected_club_id == club.id }}>{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">Показать</button></noscript>
+  </form>
+  {% if not clubs %}
+  <p class="empty">Вы не руководите ни одним клубом.</p>
+  {% endif %}
+</div>
+
+{% if clubs %}
+<div class="card">
+  <h2>Инвайты</h2>
+  <div class="grid" style="align-items:flex-start">
+    <form method="post" action="/app/team/invite-storekeeper" class="grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="club_id" value="{{ selected_club_id }}">
+      <button type="submit">Инвайт для завхоза клуба</button>
+    </form>
+    <form method="post" action="/app/team/invite-leader">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Инвайт для нового руководителя</button>
+    </form>
+  </div>
+  <p class="hint">
+    Инвайт завхоза сразу добавляет человека в выбранный клуб. Новый
+    руководитель начинает без клубов и создаёт свой сам.
+  </p>
+</div>
+
+<div class="card">
+  <h2>Назначить завхоза</h2>
+  {% if users %}
+  <form method="post" action="/app/team/storekeepers" class="grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="club_id" value="{{ selected_club_id }}">
+    <label class="field" style="flex:1 0 280px">
+      <span>Человек</span>
+      <select name="user_id">
+        {% for entry in users %}
+        <option value="{{ entry.id }}">{{ entry.surname }} {{ entry.name }} ({{ entry.phone }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Назначить завхозом клуба</button>
+  </form>
+  <p class="hint">Если человек уже в клубе, его роль сменится на «завхоз».</p>
+  {% else %}
+  <p class="hint">Нет людей, которых можно назначить.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Завхозы клуба</h2>
+  {% if storekeepers %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>ФИО</th><th>Телефон</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for member in storekeepers %}
+        <tr>
+          <td>{{ member.user_id }}</td>
+          <td>
+            {% if member.user %}{{ member.user.surname }} {{ member.user.name }}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ member.user.phone if member.user else '—' }}</td>
+          <td>
+            <form method="post" action="/app/team/storekeepers/{{ selected_club_id }}/{{ member.user_id }}/remove"
+                  onsubmit="return confirm('Убрать человека из клуба?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="danger" type="submit">Убрать из клуба</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">В клубе пока нет завхозов.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Созданные приглашения</h2>
+  {% if invites %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Код</th><th>Роль</th><th>Клуб</th><th>Создан</th><th>Использован</th></tr>
+      </thead>
+      <tbody>
+        {% for invite in invites %}
+        <tr>
+          <td>{{ invite.id }}</td>
+          <td><code>{{ invite.code }}</code></td>
+          <td>{{ translate_role(invite.role) }}</td>
+          <td>{{ invite.club_name }}</td>
+          <td>{{ invite.created_at[:16].replace('T', ' ') }}</td>
+          <td>
+            {% if invite.used_at %}
+              {{ invite.used_at[:16].replace('T', ' ') }}
+            {% else %}
+              <span class="badge available">Не использован</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Вы ещё не создавали приглашений.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

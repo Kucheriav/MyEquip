@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Изменить человека — MyEquip{% endblock %}
+{% block content %}
+<h1>Изменить человека</h1>
+<p class="hint">Клубы и роли меняются на странице «Доступ». Здесь — только личные данные.</p>
+
+<div class="card">
+  <form method="post" action="/app/people/{{ person.id }}" class="issue-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Фамилия</span>
+      <input type="text" name="surname" value="{{ person.surname }}" required>
+    </label>
+
+    <label class="field">
+      <span>Имя</span>
+      <input type="text" name="name" value="{{ person.name }}" required>
+    </label>
+
+    <label class="field">
+      <span>Отчество</span>
+      <input type="text" name="last_name" value="{{ person.last_name or '' }}">
+    </label>
+
+    <label class="field">
+      <span>Телефон</span>
+      <input type="text" name="phone" value="{{ person.phone }}" required>
+    </label>
+
+    <label class="field">
+      <span>Почта</span>
+      <input type="email" name="email" value="{{ person.email or '' }}">
+    </label>
+
+    <label class="field">
+      <span>Дата рождения</span>
+      <input type="date" name="date_of_birth" value="{{ person.date_of_birth or '' }}">
+    </label>
+
+    <label class="field">
+      <span>Статус</span>
+      <select name="status">
+        {% for code, label in statuses %}
+        <option value="{{ code }}" {{ 'selected' if person.status == code }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="grid wide">
+      <button type="submit">Сохранить</button>
+      <a class="button secondary" href="/app/people">Назад</a>
+    </div>
+  </form>
+
+  <p class="hint" style="margin-top:14px">Клубы: {{ memberships_text or '—' }}</p>
+</div>
+{% endblock %}

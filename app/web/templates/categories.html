@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Категории — MyEquip{% endblock %}
+{% block content %}
+<h1>Категории и свойства</h1>
+
+{% if clubs %}
+<div class="card">
+  <h2>Добавить категорию</h2>
+  <form method="post" action="/app/categories" class="grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Клуб</span>
+      <select name="club_id">
+        {% for club in clubs %}
+        <option value="{{ club.id }}">{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Название</span>
+      <input type="text" name="title" placeholder="Название категории" required>
+    </label>
+
+    <label class="field">
+      <span>Родительская категория</span>
+      <select name="parent_id">
+        <option value="">Нет</option>
+        {% for category in rows %}
+        <option value="{{ category.id }}">{{ category.title }} ({{ category.club_name }})</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit">Добавить категорию</button>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <p class="hint">Создавать категории может только руководитель клуба.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Список категорий</h2>
+  {% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
+  {% if rows %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Название</th><th>Клуб</th><th>Родитель</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for category in rows %}
+        <tr>
+          <td>{{ category.id }}</td>
+          <td>{{ category.title }}</td>
+          <td>{{ category.club_name }}</td>
+          <td>{{ category.parent_title }}</td>
+          <td>
+            <a class="button secondary" href="/app/categories?category_id={{ category.id }}">Свойства</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Категорий пока нет.</p>
+  {% endif %}
+</div>
+
+{% if selected_category_id %}
+<div class="card">
+  <h2>Свойства категории «{{ selected_title }}»</h2>
+  {% if parameters %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>Свойство</th><th>Тип</th><th>Источник</th><th>Варианты</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for parameter in parameters %}
+        <tr>
+          <td>{{ parameter.name }}</td>
+          <td>{{ parameter.type_label }}</td>
+          <td>{{ 'от родителя' if parameter.inherited else 'своё' }}</td>
+          <td class="hint">
+            {{ parameter.variants|map(attribute='value')|join(', ') or '—' }}
+          </td>
+          <td>
+            {% if not parameter.inherited and selected_category_id in led_ids %}
+            <form method="post"
+                  action="/app/categories/{{ selected_category_id }}/parameters/{{ parameter.id }}/detach"
+                  onsubmit="return confirm('Отвязать свойство от категории?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="danger" type="submit">Отвязать</button>
+            </form>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">У категории пока нет свойств.</p>
+  {% endif %}
+</div>
+
+{% if selected_category_id in led_ids %}
+<div class="card">
+  <h2>Добавить свойство к категории</h2>
+  <p class="hint">
+    Если свойство с таким названием уже существует, оно будет привязано
+    к категории. Варианты создаются только для нового свойства.
+  </p>
+  <form method="post" action="/app/categories/{{ selected_category_id }}/parameters" class="issue-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Свойство</span>
+      <input type="text" name="name" placeholder="Например: Температура комфорта" required>
+    </label>
+
+    <label class="field">
+      <span>Тип</span>
+      <select name="param_type">
+        {% for code, label in param_types %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field wide">
+      <span>Варианты через запятую (необязательно)</span>
+      <input type="text" name="variants" placeholder="2, 3, 4">
+    </label>
+
+    <button type="submit">Добавить свойство</button>
+  </form>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Склады — MyEquip{% endblock %}
+{% block content %}
+<h1>Склады</h1>
+
+{% if clubs %}
+<div class="card">
+  <h2>Добавить склад</h2>
+  <form method="post" action="/app/storages" class="issue-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Клуб</span>
+      <select name="club_id">
+        {% for club in clubs %}
+        <option value="{{ club.id }}">{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Название</span>
+      <input type="text" name="name" placeholder="Название склада" required>
+    </label>
+
+    <label class="field">
+      <span>Адрес (необязательно)</span>
+      <input type="text" name="address" placeholder="Адрес">
+    </label>
+
+    <button type="submit">Добавить склад</button>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <p class="hint">Создавать склады может только руководитель клуба.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Список складов</h2>
+  {% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
+  {% if rows %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Название</th><th>Адрес</th><th>Клуб</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+          <td>{{ row.address or '—' }}</td>
+          <td>{{ row.club_name }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Складов пока нет.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -3,6 +3,14 @@
 {% block content %}
 <h1>Снаряжение</h1>
 
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div>
+    <h2 style="margin:0">Учёт снаряжения</h2>
+    <p class="hint" style="margin:4px 0 0">Фильтры применяются к списку ниже.</p>
+  </div>
+  <a class="button" href="/app/items/new">Добавить снаряжение</a>
+</div>
+
 {% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
 
 <div class="card">
@@ -55,6 +63,8 @@
           <th>Склад</th>
           <th>Статус</th>
           <th>Серийный номер</th>
+          <th>Свойства</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -67,6 +77,8 @@
           <td>{{ storage_names.get(item.storage_id, '—') }}</td>
           <td><span class="badge {{ item.status }}">{{ translate_status(item.status) }}</span></td>
           <td>{{ item.serial_number or '—' }}</td>
+          <td class="hint">{{ (props_by_item.get(item.id) or [])|join(', ') or '—' }}</td>
+          <td><a class="button secondary" href="/app/items/{{ item.id }}/edit">Изменить</a></td>
         </tr>
         {% endfor %}
       </tbody>

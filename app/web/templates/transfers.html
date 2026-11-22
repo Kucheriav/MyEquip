@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Перемещения — MyEquip{% endblock %}
+{% block content %}
+<h1>Перемещения</h1>
+
+<div class="card">
+  <h2>Переместить снаряжение</h2>
+  <p class="hint">
+    Перемещающий — вы: {{ user.surname }} {{ user.name }}. Откуда вещь
+    забирают, определяется её текущим складом.
+  </p>
+
+  {% if items %}
+  <form method="post" action="/app/transfers" class="grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Предмет</span>
+      <select name="item_id"
+              hx-get="/app/transfers/targets"
+              hx-target="#transfer-target"
+              hx-swap="innerHTML"
+              hx-trigger="change">
+        {% for item in items %}
+        <option value="{{ item.id }}" {{ 'selected' if selected_item and item.id == selected_item.id }}>
+          {{ item.name }} — {{ storage_names.get(item.storage_id, 'без склада') }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div id="transfer-target" class="grid" style="flex:1 0 100%">
+      {% include "_transfer_targets.html" %}
+    </div>
+
+    <label class="field" style="flex:1 0 240px">
+      <span>Комментарий (необязательно)</span>
+      <input type="text" name="comment" placeholder="Например: переезд на склад клуба">
+    </label>
+
+    <button type="submit">Переместить</button>
+  </form>
+  {% else %}
+  <p class="empty">Нет снаряжения для перемещения.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>История перемещений</h2>
+  {% if rows %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Предмет</th>
+          <th>Откуда</th>
+          <th>Куда</th>
+          <th>Дата</th>
+          <th>Переместил</th>
+          <th>Принял</th>
+          <th>Комментарий</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.item_name }}</td>
+          <td>{{ row.from_name or '—' }}</td>
+          <td>{{ row.to_name or '—' }}</td>
+          <td>{{ row.date }}</td>
+          <td>{{ row.mover_name or '—' }}</td>
+          <td>{{ row.receiver_name or '—' }}</td>
+          <td>{{ row.comment or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Перемещений пока не было.</p>
+  {% endif %}
+</div>
+{% endblock %}

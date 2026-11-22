@@ -66,6 +66,16 @@ async def post(path: str, token: Optional[str] = None, json: Any = None) -> tupl
     return response.status_code, _json(response)
 
 
+async def put(path: str, token: Optional[str] = None, json: Any = None) -> tuple[int, Any]:
+    response = await http().put(path, headers=headers(token), json=json)
+    return response.status_code, _json(response)
+
+
+async def delete(path: str, token: Optional[str] = None) -> tuple[int, Any]:
+    response = await http().delete(path, headers=headers(token))
+    return response.status_code, _json(response)
+
+
 # The API speaks English; the web UI speaks Russian. Only the messages a
 # user can realistically see are translated, everything else falls back.
 MESSAGES = {
@@ -87,6 +97,36 @@ MESSAGES = {
         "Выдающий должен быть руководителем или завхозом клуба",
     "The accepter must be a leader or storekeeper of this club":
         "Принимающий должен быть руководителем или завхозом клуба",
+    "Source and destination storages must differ":
+        "Склад назначения совпадает с текущим складом вещи",
+    "Source storage not found": "Текущий склад вещи не найден",
+    "Destination storage not found": "Склад назначения не найден",
+    "Item is currently issued to a person and cannot be transferred":
+        "Вещь выдана — сначала примите её возврат",
+    "Item is lost and cannot be transferred": "Вещь числится потерянной",
+    "Source storage belongs to another club": "Текущий склад принадлежит другому клубу",
+    "Destination storage belongs to another club":
+        "Склад назначения принадлежит другому клубу",
+    "The mover must be a leader or storekeeper of this club":
+        "Перемещающий должен быть руководителем или завхозом клуба",
+    "The receiver must be a leader or storekeeper of this club":
+        "Принимающий должен быть руководителем или завхозом клуба",
+    "Breakdown is already repaired": "Эта поломка уже отмечена как отремонтированная",
+    "Breakdown not found": "Поломка не найдена",
+    "Item not found": "Вещь не найдена",
+    "Storage not found": "Склад не найден",
+    "This phone number is already registered": "Этот телефон уже зарегистрирован",
+    "Email already registered": "Эта почта уже зарегистрирована",
+    "User not found": "Человек не найден",
+    "Club already exists": "Клуб с таким названием уже есть",
+    "Club not found": "Клуб не найден",
+    "Member not found": "Участник не найден",
+    "The club leader cannot be removed from the club":
+        "Руководителя нельзя убрать из клуба",
+    "This club already has a leader": "В клубе уже есть руководитель",
+    "A storekeeper invite needs club_id": "Для инвайта завхоза нужен клуб",
+    "A leader invite must not have club_id": "Инвайт руководителя не привязан к клубу",
+    "Role must be 'storekeeper' or 'tourist'": "Роль должна быть «завхоз» или «турист»",
 }
 
 

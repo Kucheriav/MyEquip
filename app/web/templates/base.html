@@ -12,8 +12,19 @@
 <header class="topbar">
   <a class="brand" href="/app/items">MyEquip</a>
   <nav>
+    {% if staff %}
     <a href="/app/items" class="{{ 'active' if active == 'items' }}">Снаряжение</a>
     <a href="/app/distributions" class="{{ 'active' if active == 'distributions' }}">Выдачи</a>
+    <a href="/app/transfers" class="{{ 'active' if active == 'transfers' }}">Перемещения</a>
+    <a href="/app/breakdowns" class="{{ 'active' if active == 'breakdowns' }}">Поломки</a>
+    <a href="/app/people" class="{{ 'active' if active == 'people' }}">Люди</a>
+    <a href="/app/clubs" class="{{ 'active' if active == 'clubs' }}">Клубы</a>
+    <a href="/app/storages" class="{{ 'active' if active == 'storages' }}">Склады</a>
+    <a href="/app/categories" class="{{ 'active' if active == 'categories' }}">Категории</a>
+    {% if is_leader %}
+    <a href="/app/team" class="{{ 'active' if active == 'team' }}">Доступ</a>
+    {% endif %}
+    {% endif %}
   </nav>
   <div class="who">
     <span>{{ user.surname }} {{ user.name }}</span>

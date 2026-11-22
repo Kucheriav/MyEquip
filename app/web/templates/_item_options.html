@@ -1,0 +1,33 @@
+<label class="field">
+  <span>Категория</span>
+  {% if categories %}
+  <select name="category_id"
+          hx-get="/app/items/fields"
+          hx-target="#item-fields"
+          hx-swap="innerHTML"
+          hx-trigger="change">
+    {% for category in categories %}
+    <option value="{{ category.id }}" {{ 'selected' if category.id == selected_category_id }}>{{ category.title }}</option>
+    {% endfor %}
+  </select>
+  {% else %}
+  <div class="hint">У клуба нет категорий — сначала создайте категорию</div>
+  {% endif %}
+</label>
+
+<label class="field">
+  <span>Склад</span>
+  {% if storages %}
+  <select name="storage_id">
+    {% for storage in storages %}
+    <option value="{{ storage.id }}" {{ 'selected' if storage.id == selected_storage_id }}>{{ storage.name }}</option>
+    {% endfor %}
+  </select>
+  {% else %}
+  <div class="hint">У клуба нет складов — сначала создайте склад</div>
+  {% endif %}
+</label>
+
+<div id="item-fields" class="grid" style="flex:1 0 100%">
+  {% include "_item_param_fields.html" %}
+</div>

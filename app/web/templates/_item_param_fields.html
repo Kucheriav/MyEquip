@@ -1,0 +1,33 @@
+{% if parameters %}
+{% for parameter in parameters %}
+<label class="field">
+  <span>{{ parameter.name }}{% if parameter.inherited %} (от родителя){% endif %}</span>
+  {% set current = current_values.get(parameter.id, {}) %}
+  {% if parameter.variants %}
+  <select name="value_{{ parameter.id }}">
+    <option value="">— не задано</option>
+    {% for value in parameter.variants %}
+    <option value="{{ value.id }}" {{ 'selected' if current.get('value_id') == value.id }}>{{ value.value }}</option>
+    {% endfor %}
+  </select>
+  {% elif parameter.param_type == 'bool' %}
+  <select name="custom_{{ parameter.id }}">
+    <option value="">— не задано</option>
+    <option value="true" {{ 'selected' if current.get('custom_value') == 'true' }}>да</option>
+    <option value="false" {{ 'selected' if current.get('custom_value') == 'false' }}>нет</option>
+  </select>
+  {% elif parameter.param_type == 'int' %}
+  <input type="number" step="1" name="custom_{{ parameter.id }}"
+         value="{{ current.get('custom_value', '') }}">
+  {% elif parameter.param_type == 'float' %}
+  <input type="number" step="any" name="custom_{{ parameter.id }}"
+         value="{{ current.get('custom_value', '') }}">
+  {% else %}
+  <input type="text" name="custom_{{ parameter.id }}"
+         value="{{ current.get('custom_value', '') }}">
+  {% endif %}
+</label>
+{% endfor %}
+{% else %}
+<p class="hint">У категории нет свойств.</p>
+{% endif %}

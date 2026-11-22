@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Поломки — MyEquip{% endblock %}
+{% block content %}
+<h1>Поломки</h1>
+
+<div class="card">
+  <h2>Зарегистрировать поломку</h2>
+  <p class="hint">
+    Вещь сразу переходит в статус «В ремонте». Мастер выбирается только
+    из сотрудников клуба, которому принадлежит вещь.
+  </p>
+
+  {% if items %}
+  <form method="post" action="/app/breakdowns" class="issue-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Предмет</span>
+      <select name="item_id"
+              hx-get="/app/breakdowns/repairers"
+              hx-target="#repairer-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change">
+        {% for item in items %}
+        <option value="{{ item.id }}" {{ 'selected' if selected_item and item.id == selected_item.id }}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field wide">
+      <span>Описание поломки</span>
+      <input type="text" name="comment" placeholder="Что сломалось" required>
+    </label>
+
+    <label class="field">
+      <span>Мастер (необязательно)</span>
+      <div id="repairer-wrap">{% include "_repairer_select.html" %}</div>
+    </label>
+
+    <button type="submit">Зарегистрировать</button>
+  </form>
+  {% else %}
+  <p class="empty">Нет снаряжения, по которому можно зарегистрировать поломку.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Список поломок</h2>
+  {% if rows %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Предмет</th>
+          <th>Описание</th>
+          <th>Дата поломки</th>
+          <th>Отремонтирована</th>
+          <th>Мастер</th>
+          <th>Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.item_name }}</td>
+          <td>{{ row.comment }}</td>
+          <td>{{ row.date }}</td>
+          <td>
+            {% if row.repaired_date %}
+              {{ row.repaired_date }}
+            {% else %}
+              <span class="badge maintenance">Не отремонтирована</span>
+            {% endif %}
+          </td>
+          <td>{{ row.repairer_name or '—' }}</td>
+          <td>
+            {% if not row.repaired_date %}
+            <details class="accept">
+              <summary>Отремонтировать</summary>
+              <form method="post" action="/app/breakdowns/{{ row.id }}/repair">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="date" name="repaired_date" value="{{ today }}">
+                <button type="submit">Готово</button>
+              </form>
+            </details>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Поломок пока не было.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Изменить снаряжение' if mode == 'edit' else 'Добавить снаряжение' }} — MyEquip{% endblock %}
+{% block content %}
+<h1>{{ 'Изменить снаряжение' if mode == 'edit' else 'Добавить снаряжение' }}</h1>
+
+<div class="card">
+  <form method="post" action="{{ action }}" class="issue-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span>Название</span>
+      <input type="text" name="name" value="{{ item.name if item else '' }}" required>
+    </label>
+
+    {% if mode == 'edit' %}
+    <div class="field">
+      <span>Клуб</span>
+      <div class="hint">{{ club_name or '—' }} (клуб вещи не меняется)</div>
+    </div>
+    {% else %}
+    <label class="field">
+      <span>Клуб</span>
+      <select name="club_id"
+              hx-get="/app/items/options"
+              hx-target="#item-options"
+              hx-swap="innerHTML"
+              hx-trigger="change">
+        {% for club in clubs %}
+        <option value="{{ club.id }}" {{ 'selected' if club.id == club_id }}>{{ club.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
+    <div id="item-options" class="grid" style="flex:1 0 100%">
+      {% include "_item_options.html" %}
+    </div>
+
+    <label class="field">
+      <span>Серийный номер (необязательно)</span>
+      <input type="text" name="serial_number" value="{{ (item.serial_number or '') if item else '' }}">
+    </label>
+
+    <label class="field">
+      <span>Статус</span>
+      <select name="status">
+        {% for code in statuses %}
+        <option value="{{ code }}" {{ 'selected' if item and item.status == code }}>{{ translate_status(code) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="grid wide">
+      <button type="submit">{{ 'Сохранить' if mode == 'edit' else 'Добавить предмет' }}</button>
+      <a class="button secondary" href="/app/items">Назад</a>
+    </div>
+  </form>
+
+  {% if mode == 'edit' %}
+  <p class="hint" style="margin-top:14px">
+    Свойства категории при сохранении записываются заново по значениям формы.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

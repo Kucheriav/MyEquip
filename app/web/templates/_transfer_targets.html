@@ -1,0 +1,17 @@
+<label class="field">
+  <span>Со склада</span>
+  <div class="hint">{{ from_name or 'Склад не указан' }}</div>
+</label>
+
+<label class="field">
+  <span>На склад</span>
+  {% if targets %}
+  <select name="to_storage_id">
+    {% for storage in targets %}
+    <option value="{{ storage.id }}">{{ storage.name }}</option>
+    {% endfor %}
+  </select>
+  {% else %}
+  <div class="hint">В клубе этой вещи нет другого склада</div>
+  {% endif %}
+</label>
