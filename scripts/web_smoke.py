@@ -93,6 +93,18 @@ def main():
           redirect.status_code == 303 and "/login" in redirect.headers.get("location", ""),
           f"{redirect.status_code} {redirect.headers.get('location')}")
 
+    root = anonymous.get(f"{BASE_URL}/", allow_redirects=False)
+    check("the site root leads into the web app",
+          root.status_code == 303
+          and root.headers.get("location", "").endswith("/app/items"),
+          f"{root.status_code} {root.headers.get('location')}")
+
+    api_banner = anonymous.get(f"{BASE_URL}/api")
+    check("the API banner is served from /api",
+          api_banner.status_code == 200
+          and api_banner.json().get("docs") == "/docs",
+          f"{api_banner.status_code} {api_banner.text[:120]}")
+
     page = anonymous.get(f"{BASE_URL}/login")
     expect("login page renders", page, 200)
     check("login page has the form", 'action="/login"' in page.text, page.text[:200])

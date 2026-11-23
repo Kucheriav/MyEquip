@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from app.database import create_all_tables
@@ -63,8 +64,14 @@ async def web_auth_required(request, exc):
     return login_redirect(request)
 
 
-@app.get("/", tags=["root"])
+@app.get("/", tags=["root"], include_in_schema=False)
 async def root():
+    """Send people to the web UI; the API banner lives at /api."""
+    return RedirectResponse("/app/items", status_code=303)
+
+
+@app.get("/api", tags=["root"])
+async def api_root():
     return {
         "message": "MyEquip API",
         "docs": "/docs",
