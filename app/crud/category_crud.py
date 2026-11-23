@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.models import Category
 from app.schemas.category_schema import CategoryCreate, CategoryUpdate
 from app.crud.base_crud import BaseCRUD
@@ -9,14 +10,17 @@ class CategoryCRUD(BaseCRUD[Category, CategoryCreate, CategoryUpdate]):
     def __init__(self):
         super().__init__(Category)
 
-    def get_by_club(self, db: Session, club_id: int) -> List[Category]:
-        return db.query(Category).filter(Category.club_id == club_id).all()
+    async def get_by_club(self, db: AsyncSession, club_id: int) -> List[Category]:
+        result = await db.execute(select(Category).filter(Category.club_id == club_id))
+        return list(result.scalars().all())
 
-    def get_root_categories(self, db: Session, club_id: int) -> List[Category]:
-        return db.query(Category).filter(
-            Category.club_id == club_id,
-            Category.parent_id == None
-        ).all()
+    async def get_root_categories(self, db: AsyncSession, club_id: int) -> List[Category]:
+        result = await db.execute(
+            select(Category).filter(
+                Category.club_id == club_id,
+                Category.parent_id == None
+            ))
+        return list(result.scalars().all())
 
 
 category_crud = CategoryCRUD()

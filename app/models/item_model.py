@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -14,11 +14,18 @@ class Item(Base):
     # item between storages of the same club).
     club_id = Column(Integer, ForeignKey('clubs.id'), nullable=False, index=True)
     status = Column(
-        Enum('available', 'issued', 'maintenance', 'lost', name="item_status_enum"),
+        Enum('available', 'issued', 'breakdown', 'lost', name="item_status_enum"),
         default='available',
         nullable=False
     )
     serial_number = Column(String(100), unique=True, nullable=True)
+
+    __table_args__ = (
+        Index('ix_item_category', 'category_id'),
+        Index('ix_item_storage', 'storage_id'),
+        Index('ix_item_owner', 'owner_id'),
+        Index('ix_item_status', 'status'),
+    )
 
     # Relationships
     category = relationship("Category", back_populates="items")

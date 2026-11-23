@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import date
 from typing import Optional
 
@@ -9,6 +9,7 @@ class BreakdownBase(BaseModel):
     date: date
     repaired_date: Optional[date] = None
     repairer_id: Optional[int] = None
+    status: str = 'reported'
 
 
 class BreakdownCreate(BreakdownBase):
@@ -19,10 +20,10 @@ class BreakdownUpdate(BaseModel):
     comment: Optional[str] = None
     repaired_date: Optional[date] = None
     repairer_id: Optional[int] = None
+    status: Optional[str] = None
 
 
 class BreakdownResponse(BreakdownBase):
     id: int
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True

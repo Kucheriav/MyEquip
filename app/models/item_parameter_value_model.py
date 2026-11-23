@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -16,3 +16,8 @@ class ItemParameterValue(Base):
     item = relationship("Item", back_populates="parameters")
     parameter = relationship("Parameter", back_populates="item_values")
     value = relationship("Value")
+
+    __table_args__ = (
+        Index('ix_ipv_item', 'item_id'),
+        Index('ix_ipv_param', 'parameter_id'),
+    )
