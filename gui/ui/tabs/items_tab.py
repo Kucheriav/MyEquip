@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QDoubleValidator
 from gui.api.client import APIClient
-from . import BaseTab, translate_status
+from . import BaseTab, ITEM_STATUSES, translate_status
 
 
 class ItemsTab(BaseTab):
@@ -41,13 +41,8 @@ class ItemsTab(BaseTab):
         form.addRow("Серийный номер:", self.item_serial_input)
 
         self.item_status_combo = QComboBox()
-        for label, code in [
-            ("Доступен", "available"),
-            ("Выдан", "issued"),
-            ("В ремонте", "maintenance"),
-            ("Потерян", "lost"),
-        ]:
-            self.item_status_combo.addItem(label, code)
+        for code in ITEM_STATUSES:
+            self.item_status_combo.addItem(translate_status(code), code)
         form.addRow("Статус:", self.item_status_combo)
 
         # ---------- dynamic per-category property fields ----------

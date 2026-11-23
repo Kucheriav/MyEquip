@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, Form, Request
 from app import labels
 from app.web import auth, bff
 from app.web.common import (
-    USER_STATUSES, csrf_error, fio, is_leader, is_staff, led_clubs, render,
-    redirect,
+    USER_STATUSES, csrf_error, fio, is_leader, is_staff, led_clubs, page_request,
+    pager, render, redirect,
 )
 
 router = APIRouter(include_in_schema=False)
@@ -34,21 +34,25 @@ async def people_page(
     request: Request,
     user: dict = Depends(auth.require_user),
     club_id: Optional[int] = None,
+    q: Optional[str] = None,
 ):
     if not is_staff(user):
         return render(request, "tourist.html", user=user)
 
     token = auth.session_token(request)
+    page, skip, limit = page_request(request)
     _, clubs = await bff.get("/api/clubs/", token)
-    code, users = await bff.get("/api/users/", token, club_id=club_id)
+    code, users = await bff.get(
+        "/api/users/", token, club_id=club_id, q=q, skip=skip, limit=limit)
 
     clubs = clubs if isinstance(clubs, list) else []
     clubs = _staff_clubs(user, clubs)
     users = users if isinstance(users, list) else []
     club_names = {club["id"]: club["name"] for club in clubs}
 
+    pager_data = pager(users, page, "/app/people", q=q, club_id=club_id)
     rows = []
-    for entry in users:
+    for entry in pager_data["rows"]:
         memberships = entry.get("memberships") or []
         entry_clubs = ", ".join(
             sorted(
@@ -60,9 +64,9 @@ async def people_page(
 
     return render(
         request, "people.html", user=user, active="people",
-        rows=rows, clubs=clubs, club_names=club_names,
+        rows=rows, pager=pager_data, clubs=clubs, club_names=club_names,
         led_club_ids=led_clubs(user), statuses=USER_STATUSES,
-        selected_club_id=club_id,
+        selected_club_id=club_id, q=q or "",
         api_error=bff.error_detail(users) if code >= 400 else None,
     )
 

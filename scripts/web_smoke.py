@@ -473,7 +473,6 @@ def main():
                                 allow_redirects=False, data={
         "name": updated_item_name,
         "category_id": new_category_id,
-        "storage_id": storage1["id"],
         "status": "maintenance",
         "serial_number": f"SN-{STAMP}",
         f"value_{state_param['id']}": chosen_value,
@@ -486,13 +485,37 @@ def main():
     item_after_edit = api.get(f"{BASE_URL}/api/items/{new_item_id}", headers=auth).json()
     check("item changes are saved", item_after_edit["name"] == updated_item_name
           and item_after_edit["status"] == "maintenance", item_after_edit)
+    check("the edit form cannot move the item to another storage",
+          item_after_edit["storage_id"] == storage1["id"], item_after_edit)
     item_params_after = api.get(
         f"{BASE_URL}/api/item-parameters/item/{new_item_id}", headers=auth).json()
     check("item properties survive the edit",
           any(p["parameter_id"] == state_param["id"] and p["value_id"] == chosen_value
               for p in item_params_after), item_params_after)
 
-    # ---------- 10. Protection ----------
+    # ---------- 10. Search and pagination ----------
+    search_hit = browser.get(f"{BASE_URL}/app/items", params={"q": f"SN-{STAMP}"})
+    check("item search finds the item by serial number",
+          updated_item_name in search_hit.text, search_hit.text[:400])
+    check("item search leaves other items out", "Веб-рюкзак" not in search_hit.text)
+
+    search_miss = browser.get(f"{BASE_URL}/app/items", params={"q": "нет-такого-предмета"})
+    check("empty item search shows the empty state",
+          "По этим условиям снаряжения нет" in search_miss.text)
+
+    people_hit = browser.get(f"{BASE_URL}/app/people", params={"q": "Обновлённый"})
+    check("people search finds the person by surname",
+          "Обновлённый" in people_hit.text)
+    people_miss = browser.get(f"{BASE_URL}/app/people", params={"q": "zzz-нет-такого"})
+    check("empty people search shows the empty state",
+          "Людей пока нет" in people_miss.text)
+
+    second_page = browser.get(f"{BASE_URL}/app/items", params={"page": 2})
+    expect("second page renders", second_page, 200)
+    check("pagination moves to the second page",
+          "Страница 2" in second_page.text and "Назад" in second_page.text)
+
+    # ---------- 11. Protection ----------
     no_csrf = browser.post(f"{BASE_URL}/app/distributions", allow_redirects=False, data={
         "item_id": item_id, "getter_id": tourist_id,
         "expiration_date": date.today().isoformat(),
@@ -506,7 +529,7 @@ def main():
           bad_login.status_code == 401 and "myequip_session" not in bad_login.cookies,
           bad_login.status_code)
 
-    # ---------- 11. Storekeeper access ----------
+    # ---------- 12. Storekeeper access ----------
     expect("leader creates a storekeeper invite", invite_created, 303)
     sk_phone = f"+7777{STAMP[-7:]}"
     expect("storekeeper registers with the invite", api.post(

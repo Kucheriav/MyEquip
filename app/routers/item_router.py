@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -75,6 +76,7 @@ def get_all_items(
     club_id: Optional[int] = None,
     category_id: Optional[int] = None,
     status: Optional[str] = None,
+    q: Optional[str] = None,
     current_user: User | None = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
@@ -99,8 +101,13 @@ def get_all_items(
         query = query.filter(Item.category_id == category_id)
     if status:
         query = query.filter(Item.status == status)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        query = query.filter(
+            or_(Item.name.ilike(pattern), Item.serial_number.ilike(pattern))
+        )
 
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(Item.id).offset(skip).limit(limit).all()
 
 
 @router.put("/{item_id}", response_model=ItemResponse)
@@ -114,12 +121,8 @@ def update_item(
     db_item = _get_visible_item(db, current_user, item_id)
 
     data = item_update.model_dump(exclude_unset=True)
-    if "category_id" in data or "storage_id" in data:
-        club_id = _resolve_item_club(
-            db,
-            data.get("category_id", db_item.category_id),
-            data.get("storage_id", db_item.storage_id),
-        )
+    if "category_id" in data:
+        club_id = _resolve_item_club(db, data["category_id"], db_item.storage_id)
         if club_id != db_item.club_id:
             raise HTTPException(status_code=400, detail="An item cannot change its club")
 

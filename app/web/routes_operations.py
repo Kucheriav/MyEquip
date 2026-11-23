@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from app.web import auth, bff
 from app.web.common import (
-    club_staff, club_storages, csrf_error, fio, is_staff, render, redirect,
+    club_staff, club_storages, csrf_error, fio, is_staff, page_request, pager,
+    render, redirect,
 )
 
 router = APIRouter(include_in_schema=False)
@@ -37,10 +38,12 @@ async def transfers_page(
         return render(request, "tourist.html", user=user)
 
     token = auth.session_token(request)
-    _, items = await bff.get("/api/items/", token)
-    _, storages = await bff.get("/api/storages/", token)
-    _, users = await bff.get("/api/users/", token)
-    _, transfers = await bff.get("/api/transfers/", token)
+    page, skip, limit = page_request(request)
+    _, items = await bff.get("/api/items/", token, limit=1000)
+    _, storages = await bff.get("/api/storages/", token, limit=1000)
+    _, users = await bff.get("/api/users/", token, limit=1000)
+    _, transfers = await bff.get(
+        "/api/transfers/", token, skip=skip, limit=limit)
 
     items = items if isinstance(items, list) else []
     storages = storages if isinstance(storages, list) else []
@@ -56,8 +59,9 @@ async def transfers_page(
         selected_item = items[0]
     targets = _transfer_targets(selected_item, storages)
 
+    pager_data = pager(transfers, page, "/app/transfers")
     rows = []
-    for record in sorted(transfers, key=lambda row: row["id"], reverse=True):
+    for record in pager_data["rows"]:
         rows.append({
             **record,
             "item_name": items_by_id.get(record["item_id"], {}).get("name", ""),
@@ -72,7 +76,7 @@ async def transfers_page(
         items=items, selected_item=selected_item, targets=targets,
         from_name=storage_names.get(selected_item.get("storage_id"), "")
         if selected_item else "",
-        storage_names=storage_names, rows=rows,
+        storage_names=storage_names, rows=rows, pager=pager_data,
         today=date.today().isoformat(),
     )
 
@@ -149,9 +153,11 @@ async def breakdowns_page(
         return render(request, "tourist.html", user=user)
 
     token = auth.session_token(request)
-    _, items = await bff.get("/api/items/", token)
-    _, users = await bff.get("/api/users/", token)
-    _, breakdowns = await bff.get("/api/breakdowns/", token)
+    page, skip, limit = page_request(request)
+    _, items = await bff.get("/api/items/", token, limit=1000)
+    _, users = await bff.get("/api/users/", token, limit=1000)
+    _, breakdowns = await bff.get(
+        "/api/breakdowns/", token, skip=skip, limit=limit)
 
     items = items if isinstance(items, list) else []
     users = users if isinstance(users, list) else []
@@ -165,8 +171,9 @@ async def breakdowns_page(
         selected_item = items[0]
     repairers = club_staff(users, selected_item.get("club_id") if selected_item else None)
 
+    pager_data = pager(breakdowns, page, "/app/breakdowns")
     rows = []
-    for record in sorted(breakdowns, key=lambda row: row["id"], reverse=True):
+    for record in pager_data["rows"]:
         rows.append({
             **record,
             "item_name": items_by_id.get(record["item_id"], {}).get("name", ""),
@@ -176,7 +183,7 @@ async def breakdowns_page(
     return render(
         request, "breakdowns.html", user=user, active="breakdowns",
         items=items, selected_item=selected_item, repairers=repairers,
-        rows=rows, today=date.today().isoformat(),
+        rows=rows, pager=pager_data, today=date.today().isoformat(),
     )
 
 

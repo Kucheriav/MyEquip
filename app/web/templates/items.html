@@ -15,6 +15,10 @@
 
 <div class="card">
   <form method="get" action="/app/items" class="grid">
+    <label class="field wide">
+      <span>Поиск по названию или серийному номеру</span>
+      <input type="search" name="q" value="{{ q }}" placeholder="Например: палатка">
+    </label>
     <label class="field">
       <span>Клуб</span>
       <select name="club_id">
@@ -50,7 +54,7 @@
 </div>
 
 <div class="card">
-  <h2>Всего: {{ items|length }}</h2>
+  <h2>{% if pager.page > 1 %}Страница {{ pager.page }} · {% endif %}Показано: {{ pager.count }}</h2>
   {% if items %}
   <div class="scroll">
     <table>
@@ -87,5 +91,6 @@
   {% else %}
   <p class="empty">По этим условиям снаряжения нет.</p>
   {% endif %}
+  {% include "_pager.html" %}
 </div>
 {% endblock %}

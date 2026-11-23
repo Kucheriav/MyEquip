@@ -74,6 +74,16 @@ h2 { font-size: 17px; margin: 0 0 12px; }
 }
 
 .grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
+.grid > .wide, .grid > .grid.wide { flex: 1 0 100%; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.pager .pager-label { color: var(--muted); font-size: 13px; }
 
 label.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
 label.field span { font-weight: 600; }
@@ -100,12 +110,16 @@ button, .button {
   color: #fff;
   border-radius: 8px;
   padding: 8px 16px;
+  display: inline-block;
+  text-decoration: none;
+  line-height: 1.2;
 }
-button:hover, .button:hover { background: var(--accent-dark); }
-button.secondary { background: #fff; color: var(--accent); }
-button.secondary:hover { background: #eef4fe; }
+button:hover, .button:hover { background: var(--accent-dark); text-decoration: none; }
+button.secondary, .button.secondary { background: #fff; color: var(--accent); }
+button.secondary:hover, .button.secondary:hover { background: #eef4fe; }
 button.danger { background: #b53636; border-color: #b53636; }
 button.danger:hover { background: #932b2b; }
+.button.disabled { background: #f3f5f8; border-color: var(--line); color: #a4adba; cursor: default; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td {

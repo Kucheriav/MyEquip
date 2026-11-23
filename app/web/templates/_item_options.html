@@ -17,7 +17,11 @@
 
 <label class="field">
   <span>Склад</span>
-  {% if storages %}
+  {% if mode|default('create') == 'edit' %}
+  <div class="hint">
+    {{ selected_storage_name or '—' }} — склад меняется только через «Перемещения»
+  </div>
+  {% elif storages %}
   <select name="storage_id">
     {% for storage in storages %}
     <option value="{{ storage.id }}" {{ 'selected' if storage.id == selected_storage_id }}>{{ storage.name }}</option>

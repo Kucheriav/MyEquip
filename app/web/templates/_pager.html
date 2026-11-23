@@ -1,0 +1,15 @@
+{% if pager.has_prev or pager.has_next %}
+<div class="pager">
+  {% if pager.has_prev %}
+  <a class="button secondary" href="{{ pager.prev_url }}" rel="prev">← Назад</a>
+  {% else %}
+  <span class="button secondary disabled">← Назад</span>
+  {% endif %}
+  <span class="pager-label">Страница {{ pager.page }}</span>
+  {% if pager.has_next %}
+  <a class="button secondary" href="{{ pager.next_url }}" rel="next">Вперёд →</a>
+  {% else %}
+  <span class="button secondary disabled">Вперёд →</span>
+  {% endif %}
+</div>
+{% endif %}

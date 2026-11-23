@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox
 )
 from gui.api.client import APIClient
-from . import BaseTab, translate_status, translate_role
+from . import BaseTab, USER_STATUSES, translate_role, translate_status
 
 
 class UsersTab(BaseTab):
@@ -43,11 +43,7 @@ class UsersTab(BaseTab):
         form.addRow("Пароль:", self.user_password_input)
 
         self.user_status_combo = QComboBox()
-        for label, code in [
-            ("Гость", "guest"),
-            ("Не подтверждён", "unverified"),
-            ("Подтверждён", "full"),
-        ]:
+        for code, label in USER_STATUSES:
             self.user_status_combo.addItem(label, code)
         form.addRow("Статус:", self.user_status_combo)
 

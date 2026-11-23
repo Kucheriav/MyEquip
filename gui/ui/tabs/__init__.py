@@ -1,36 +1,14 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QFormLayout
 
-# Status codes are stored in the DB in English; the GUI shows them in
-# Russian. Covers item statuses (items, distributions) and user statuses.
-STATUS_LABELS = {
-    "available": "Доступен",
-    "issued": "Выдан",
-    "maintenance": "В ремонте",
-    "lost": "Потерян",
-    "returned": "Возвращён",
-    "guest": "Гость",
-    "unverified": "Не подтверждён",
-    "full": "Подтверждён",
-}
+from app.labels import (
+    ITEM_STATUSES, ROLE_LABELS, STAFF_ROLES, STATUS_LABELS, USER_STATUSES,
+    translate_role, translate_status,
+)
 
-
-ROLE_LABELS = {
-    "leader": "Руководитель",
-    "storekeeper": "Завхоз",
-    "tourist": "Турист",
-}
-
-
-def translate_status(status):
-    return STATUS_LABELS.get(status, status if isinstance(status, str) else "")
-
-
-def translate_role(role):
-    return ROLE_LABELS.get(role, role if isinstance(role, str) else "")
-
-
-# Roles that may perform equipment operations (issue, accept, move)
-STAFF_ROLES = ("leader", "storekeeper")
+__all__ = [
+    "ITEM_STATUSES", "ROLE_LABELS", "STAFF_ROLES", "STATUS_LABELS",
+    "USER_STATUSES", "translate_role", "translate_status",
+]
 
 
 def club_role(user: dict, club_id):

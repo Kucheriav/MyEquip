@@ -48,9 +48,9 @@ FLASH_MESSAGES = {
     "item_deleted": "Снаряжение удалено",
 }
 
-ITEM_STATUSES = ("available", "issued", "maintenance", "lost")
+ITEM_STATUSES = labels.ITEM_STATUSES
 
-USER_STATUSES = (("guest", "Гость"), ("unverified", "Не подтверждён"), ("full", "Подтверждён"))
+USER_STATUSES = labels.USER_STATUSES
 
 PARAM_TYPES = (("int", "Число"), ("float", "Число дробное"), ("str", "Текст"), ("bool", "Да/Нет"))
 PARAM_TYPE_LABELS = dict(PARAM_TYPES)
@@ -159,6 +159,34 @@ def parse_date(value: Optional[str], fallback: date) -> str:
         return date.fromisoformat((value or "").strip()).isoformat()
     except ValueError:
         return fallback.isoformat()
+
+
+# ---------- list pagination ----------
+PAGE_SIZE = 25
+
+
+def page_request(request: Request) -> tuple[int, int, int]:
+    """(page, skip, limit). One extra row is fetched to detect a next page."""
+    try:
+        page = max(1, int(request.query_params.get("page", "1")))
+    except (TypeError, ValueError):
+        page = 1
+    return page, (page - 1) * PAGE_SIZE, PAGE_SIZE + 1
+
+
+def pager(rows: list, page: int, path: str, **params) -> dict:
+    """Trim the extra row and build the previous/next page links."""
+    has_next = len(rows) > PAGE_SIZE
+    visible = rows[:PAGE_SIZE]
+    return {
+        "rows": visible,
+        "page": page,
+        "count": len(visible),
+        "prev_url": with_query(path, page=page - 1, **params) if page > 1 else None,
+        "next_url": with_query(path, page=page + 1, **params) if has_next else None,
+        "has_prev": page > 1,
+        "has_next": has_next,
+    }
 
 
 def csrf_error() -> HTMLResponse:

@@ -77,7 +77,7 @@ def get_all_transfers(
     """Get movement history of your clubs"""
     query = db.query(Transfer).join(Item, Item.id == Transfer.item_id)
     query = access_service.filter_by_clubs(query, Item.club_id, db, current_user)
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(Transfer.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/{transfer_id}", response_model=TransferResponse)

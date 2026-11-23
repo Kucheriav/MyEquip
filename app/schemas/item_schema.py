@@ -16,10 +16,11 @@ class ItemCreate(ItemBase):
 
 
 class ItemUpdate(BaseModel):
-    """The owning club can never be changed."""
+    """The owning club can never be changed, and neither can the storage:
+    equipment moves between storages only through a Transfer record, so the
+    movement history stays complete."""
     name: Optional[str] = None
     category_id: Optional[int] = None
-    storage_id: Optional[int] = None
     status: Optional[str] = None
     serial_number: Optional[str] = None
 

@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, Form, Request
 from app import labels
 from app.web import auth, bff
 from app.web.common import (
-    ITEM_STATUSES, club_members, club_storages, csrf_error, fio, is_staff, render,
-    redirect, with_query,
+    ITEM_STATUSES, club_members, club_storages, csrf_error, fio, is_staff,
+    page_request, pager, render, redirect, with_query,
 )
 
 router = APIRouter(include_in_schema=False)
@@ -75,19 +75,22 @@ async def items_page(
     club_id: Optional[int] = None,
     storage_id: Optional[int] = None,
     status: Optional[str] = None,
+    q: Optional[str] = None,
 ):
     if not is_staff(user):
         return render(request, "tourist.html", user=user)
 
     token = auth.session_token(request)
+    page, skip, limit = page_request(request)
     _, clubs = await bff.get("/api/clubs/", token)
     _, storages = await bff.get("/api/storages/", token)
     _, categories = await bff.get("/api/categories/", token)
-    _, item_parameters = await bff.get("/api/item-parameters/", token)
+    _, item_parameters = await bff.get("/api/item-parameters/", token, limit=1000)
     _, parameters = await bff.get("/api/parameters/", token)
     _, values = await bff.get("/api/values/", token)
     code, items = await bff.get(
-        "/api/items/", token, club_id=club_id, storage_id=storage_id, status=status)
+        "/api/items/", token, club_id=club_id, storage_id=storage_id, status=status,
+        q=q, skip=skip, limit=limit)
     items = items if isinstance(items, list) else []
 
     parameter_names = {p["id"]: p["name"] for p in parameters or []}
@@ -105,14 +108,21 @@ async def items_page(
         name = parameter_names.get(entry["parameter_id"], "")
         props_by_item.setdefault(entry["item_id"], []).append(f"{name} — {text}")
 
+    pager_data = pager(
+        items, page, "/app/items",
+        q=q, club_id=club_id, storage_id=storage_id, status=status,
+    )
+
     return render(
         request, "items.html", user=user, active="items",
-        items=items, clubs=clubs or [], storages=storages or [], statuses=ITEM_STATUSES,
+        items=pager_data["rows"], pager=pager_data,
+        clubs=clubs or [], storages=storages or [], statuses=ITEM_STATUSES,
         club_names={c["id"]: c["name"] for c in clubs or []},
         storage_names={s["id"]: s["name"] for s in storages or []},
         category_names={c["id"]: c.get("title", "") for c in categories or []},
         props_by_item=props_by_item,
         filters={"club_id": club_id, "storage_id": storage_id, "status": status},
+        q=q or "",
         api_error=bff.error_detail(items) if code >= 400 else None,
     )
 
@@ -127,11 +137,13 @@ async def distributions_page(
         return render(request, "tourist.html", user=user)
 
     token = auth.session_token(request)
+    page, skip, limit = page_request(request)
     _, clubs = await bff.get("/api/clubs/", token)
     _, storages = await bff.get("/api/storages/", token)
     _, items = await bff.get("/api/items/", token)
     _, users = await bff.get("/api/users/", token)
-    _, distributions = await bff.get("/api/distributions/", token)
+    _, distributions = await bff.get(
+        "/api/distributions/", token, skip=skip, limit=limit)
 
     storages = storages or []
     items = items if isinstance(items, list) else []
@@ -149,8 +161,9 @@ async def distributions_page(
     selected_club_id = selected_item.get("club_id") if selected_item else None
     getters = club_members(users, selected_club_id)
 
+    pager_data = pager(distributions, page, "/app/distributions")
     rows = []
-    for record in sorted(distributions, key=lambda row: row["id"], reverse=True):
+    for record in pager_data["rows"]:
         item = items_by_id.get(record["item_id"], {})
         rows.append({
             **record,
@@ -168,7 +181,7 @@ async def distributions_page(
         request, "distributions.html", user=user, active="distributions",
         available_items=available_items, selected_item=selected_item,
         selected_club_id=selected_club_id, getters=getters,
-        storage_names=storage_names, rows=rows,
+        storage_names=storage_names, rows=rows, pager=pager_data,
         today=date.today().isoformat(),
         default_expiration=(date.today() + timedelta(days=14)).isoformat(),
         me_id=user["id"],
@@ -291,6 +304,11 @@ def _item_context(user: dict, clubs: list, storages: list, categories: list,
         "categories": club_categories,
         "selected_category_id": selected_category_id,
         "selected_storage_id": selected_storage_id,
+        "selected_storage_name": next(
+            (storage["name"] for storage in club_storages_list
+             if storage["id"] == selected_storage_id),
+            "",
+        ),
     }
 
 
@@ -446,7 +464,6 @@ async def update_item(
     item_id: int,
     name: str = Form(...),
     category_id: int = Form(...),
-    storage_id: int = Form(...),
     status: str = Form("available"),
     serial_number: str = Form(""),
     csrf_token: str = Form(""),
@@ -461,7 +478,6 @@ async def update_item(
     payload = {
         "name": name.strip(),
         "category_id": category_id,
-        "storage_id": storage_id,
         "status": status,
         "serial_number": serial_number.strip() or None,
     }

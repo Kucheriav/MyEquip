@@ -77,7 +77,7 @@ def get_all_breakdowns(
     """Get breakdowns of your clubs"""
     query = db.query(Breakdown).join(Item, Item.id == Breakdown.item_id)
     query = access_service.filter_by_clubs(query, Item.club_id, db, current_user)
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(Breakdown.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/item/{item_id}", response_model=List[BreakdownResponse])

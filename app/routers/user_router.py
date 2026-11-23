@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -85,6 +86,7 @@ def get_all_users(
     skip: int = 0,
     limit: int = 100,
     club_id: int | None = None,
+    q: str | None = None,
     current_user: User | None = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
@@ -100,11 +102,26 @@ def get_all_users(
     if not club_ids:
         return []
 
-    return (
+    query = (
         db.query(User)
         .join(ClubMember, ClubMember.user_id == User.id)
         .filter(ClubMember.club_id.in_(club_ids))
         .distinct()
+    )
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                User.surname.ilike(pattern),
+                User.name.ilike(pattern),
+                User.last_name.ilike(pattern),
+                User.phone.ilike(pattern),
+                User.email.ilike(pattern),
+            )
+        )
+
+    return (
+        query.order_by(User.surname, User.name, User.id)
         .offset(skip)
         .limit(limit)
         .all()

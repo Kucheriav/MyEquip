@@ -27,6 +27,14 @@ ROLE_LABELS = {
 
 STAFF_ROLES = ("leader", "storekeeper")
 
+# Statuses a user can pick in a form, in display order
+ITEM_STATUSES = ("available", "issued", "maintenance", "lost")
+USER_STATUSES = (
+    ("guest", STATUS_LABELS["guest"]),
+    ("unverified", STATUS_LABELS["unverified"]),
+    ("full", STATUS_LABELS["full"]),
+)
+
 
 def translate_status(status):
     return STATUS_LABELS.get(status, status if isinstance(status, str) else "")

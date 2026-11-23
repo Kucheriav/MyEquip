@@ -5,6 +5,10 @@
 
 <div class="card">
   <form method="get" action="/app/people" class="grid">
+    <label class="field wide">
+      <span>Поиск по ФИО, телефону или почте</span>
+      <input type="search" name="q" value="{{ q }}" placeholder="Например: Иванов">
+    </label>
     <label class="field">
       <span>Клуб</span>
       <select name="club_id">
@@ -89,7 +93,7 @@
 {% endif %}
 
 <div class="card">
-  <h2>Всего: {{ rows|length }}</h2>
+  <h2>{% if pager.page > 1 %}Страница {{ pager.page }} · {% endif %}Показано: {{ pager.count }}</h2>
   {% if api_error %}<div class="flash error">{{ api_error }}</div>{% endif %}
   {% if rows %}
   <div class="scroll">
@@ -127,5 +131,6 @@
   {% else %}
   <p class="empty">Людей пока нет.</p>
   {% endif %}
+  {% include "_pager.html" %}
 </div>
 {% endblock %}
