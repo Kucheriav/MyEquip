@@ -59,7 +59,7 @@ async def create_storage(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/storages", error="Недостаточно прав")
 
@@ -151,7 +151,7 @@ async def create_category(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/categories", error="Недостаточно прав")
 
@@ -181,7 +181,7 @@ async def attach_parameter(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/categories", category_id=category_id,
                         error="Недостаточно прав")
@@ -233,7 +233,7 @@ async def detach_parameter(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/categories", category_id=category_id,
                         error="Недостаточно прав")

@@ -218,7 +218,7 @@ async def issue_item(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/distributions", error="Недостаточно прав")
 
@@ -254,7 +254,7 @@ async def accept_item(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/distributions", error="Недостаточно прав")
 
@@ -437,7 +437,7 @@ async def create_item(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/items", error="Недостаточно прав")
 
@@ -470,7 +470,7 @@ async def update_item(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/items", error="Недостаточно прав")
 

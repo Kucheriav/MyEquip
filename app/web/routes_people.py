@@ -86,7 +86,7 @@ async def create_person(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/people", error="Добавлять людей может только руководитель")
 
@@ -153,7 +153,7 @@ async def update_person(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/people", error="Менять данные может только руководитель")
 
@@ -213,7 +213,7 @@ async def create_club(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/clubs", error="Создавать клубы может только руководитель")
 
@@ -296,7 +296,7 @@ async def invite_storekeeper(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/team", error="Инвайты создаёт только руководитель")
 
@@ -318,7 +318,7 @@ async def invite_leader(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/team", error="Инвайты создаёт только руководитель")
 
@@ -341,7 +341,7 @@ async def grant_storekeeper(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/team", error="Назначает завхозов только руководитель")
 
@@ -362,7 +362,7 @@ async def remove_storekeeper(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_leader(user):
         return redirect("/app/team", error="Убирает из клуба только руководитель")
 

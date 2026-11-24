@@ -1,10 +1,16 @@
-from fastapi import FastAPI
+import time
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from app.config import config
 from app.database import create_all_tables
 from app.bootstrap import bootstrap_invite_if_empty
+from app.logging_config import (
+    access_logger, client_ip, security_logger, setup_logging,
+)
 from app.routers import (
     user_router, club_router, category_router, parameter_router,
     value_router, storage_router, item_router, distribution_router,
@@ -13,6 +19,8 @@ from app.routers import (
 )
 from app.web.auth import WebAuthRequired, login_redirect
 from app.web.routes import router as web_router
+
+setup_logging()
 
 # Create FastAPI application
 app = FastAPI(
@@ -29,6 +37,55 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Paths that are noisy (probes, static files) or not ours at all
+UNLOGGED_PATHS = ("/health", "/favicon.ico")
+UNLOGGED_PREFIXES = ("/static/", "/v1/")
+
+
+def _log_request(request: Request, request_id: str, started: float,
+                 status: int, failed: bool = False) -> None:
+    path = request.url.path
+    if path in UNLOGGED_PATHS or path.startswith(UNLOGGED_PREFIXES):
+        return
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    user_id = getattr(request.state, "user_id", "-")
+    ip = client_ip(request)
+    extra = {"request_id": request_id}
+    if failed:
+        access_logger.exception(
+            "%s %s -> 500 in %.0f ms user=%s ip=%s",
+            request.method, path, elapsed_ms, user_id, ip, extra=extra)
+    elif status in (401, 403) and path != "/login":
+        # /login failures are already logged by the login handler with a
+        # masked identifier; other 401/403s are access-control events.
+        security_logger.warning(
+            "%s %s -> %s user=%s ip=%s",
+            request.method, path, status, user_id, ip, extra=extra)
+    elif status >= 500:
+        access_logger.error(
+            "%s %s -> %s in %.0f ms user=%s ip=%s",
+            request.method, path, status, elapsed_ms, user_id, ip, extra=extra)
+    elif status >= 400 or elapsed_ms >= config.LOG_SLOW_MS:
+        access_logger.warning(
+            "%s %s -> %s in %.0f ms user=%s ip=%s",
+            request.method, path, status, elapsed_ms, user_id, ip, extra=extra)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log failed and slow requests; hand a request id back to the client."""
+    request_id = uuid.uuid4().hex[:12]
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        _log_request(request, request_id, started, 500, failed=True)
+        raise
+    _log_request(request, request_id, started, response.status_code)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # Create all database tables, then generate the first invite code if the DB is empty
 create_all_tables()

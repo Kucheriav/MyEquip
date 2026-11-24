@@ -1,8 +1,12 @@
+import logging
+
 import requests
 
 # One shared session -> TCP connections are reused (keep-alive) instead of
 # opening a new connection for every single request.
 _session = requests.Session()
+
+logger = logging.getLogger("gui.api")
 
 
 class APIClient:
@@ -27,6 +31,7 @@ class APIClient:
             if response.status_code == 200:
                 APIClient.ME = response.json()
         except Exception:
+            logger.warning("fetch_me failed", exc_info=True)
             APIClient.ME = None
         return APIClient.ME
 
@@ -47,28 +52,43 @@ class APIClient:
         return (APIClient.ME or {}).get("club_ids", [])
 
     @staticmethod
+    def _request(method: str, endpoint: str, **kwargs):
+        try:
+            response = _session.request(
+                method, f"{APIClient.BASE_URL}{endpoint}", **kwargs)
+        except Exception:
+            logger.exception("%s %s failed", method, endpoint)
+            raise
+        if response.status_code >= 400:
+            logger.warning("%s %s -> %s", method, endpoint, response.status_code)
+        return response
+
+    @staticmethod
     def get(endpoint):
-        return _session.get(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
+        return APIClient._request("GET", endpoint, headers=APIClient._headers())
 
     @staticmethod
     def post(endpoint, data):
-        return _session.post(f"{APIClient.BASE_URL}{endpoint}", json=data, headers=APIClient._headers())
+        return APIClient._request(
+            "POST", endpoint, json=data, headers=APIClient._headers())
 
     @staticmethod
     def put(endpoint, data):
-        return _session.put(f"{APIClient.BASE_URL}{endpoint}", json=data, headers=APIClient._headers())
+        return APIClient._request(
+            "PUT", endpoint, json=data, headers=APIClient._headers())
 
     @staticmethod
     def delete(endpoint):
-        return _session.delete(f"{APIClient.BASE_URL}{endpoint}", headers=APIClient._headers())
+        return APIClient._request(
+            "DELETE", endpoint, headers=APIClient._headers())
 
     @staticmethod
     def login(login: str, password: str) -> tuple[bool, str]:
         """Authenticate against the API and store the token.
         Returns (ok, message)."""
         try:
-            response = _session.post(
-                f"{APIClient.BASE_URL}/auth/login",
+            response = APIClient._request(
+                "POST", "/auth/login",
                 json={"login": login, "password": password},
             )
             if response.status_code == 200:
@@ -85,7 +105,8 @@ class APIClient:
         """Register a leader with an invite code, then log in.
         Returns (ok, message)."""
         try:
-            response = _session.post(f"{APIClient.BASE_URL}/auth/register", json=data)
+            response = APIClient._request(
+                "POST", "/auth/register", json=data)
             if response.status_code != 201:
                 return False, response.json().get("detail", "Ошибка регистрации")
             return APIClient.login(data["phone"], data["password"])

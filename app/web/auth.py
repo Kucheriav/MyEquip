@@ -50,6 +50,7 @@ async def require_user(request: Request) -> dict:
     user = await current_user(request)
     if user is None:
         raise WebAuthRequired()
+    request.state.user_id = user.get("id", "-")
     return user
 
 

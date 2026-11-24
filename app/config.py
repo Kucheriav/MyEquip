@@ -20,6 +20,13 @@ class Config(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     # Web UI: mark the session cookie Secure when served over HTTPS
     WEB_COOKIE_SECURE: bool = False
+    # File logging
+    LOG_DIR: str = "logs"
+    LOG_LEVEL: str = "INFO"
+    LOG_RETENTION_DAYS: int = 14
+    LOG_SLOW_MS: int = 500
+    # Trust X-Forwarded-For (only enable behind nginx/Caddy)
+    TRUST_PROXY: bool = False
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")

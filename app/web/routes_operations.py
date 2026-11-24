@@ -114,7 +114,7 @@ async def create_transfer(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/transfers", error="Недостаточно прав")
 
@@ -216,7 +216,7 @@ async def report_breakdown(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/breakdowns", error="Недостаточно прав")
 
@@ -248,7 +248,7 @@ async def repair_breakdown(
     user: dict = Depends(auth.require_user),
 ):
     if not auth.check_csrf(request, csrf_token):
-        return csrf_error()
+        return csrf_error(request)
     if not is_staff(user):
         return redirect("/app/breakdowns", error="Недостаточно прав")
 

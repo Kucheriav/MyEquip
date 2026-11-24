@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app import labels
+from app.logging_config import client_ip, security_logger
 from app.web import auth, bff
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -189,7 +190,13 @@ def pager(rows: list, page: int, path: str, **params) -> dict:
     }
 
 
-def csrf_error() -> HTMLResponse:
+def csrf_error(request: Optional[Request] = None) -> HTMLResponse:
+    if request is not None:
+        security_logger.warning(
+            "csrf rejected path=%s ip=%s",
+            request.url.path, client_ip(request),
+            extra={"request_id": getattr(request.state, "request_id", "-")},
+        )
     return HTMLResponse(
         "<h1>400</h1><p>Форма устарела или запрос пришёл не с этого сайта. "
         "Обновите страницу и повторите.</p>",

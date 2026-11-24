@@ -11,6 +11,7 @@ Checks the browser flow (login by cookie, issue, accept) and that the
 forms cannot override the "executor is the logged-in user" rule.
 """
 import sys
+import os
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -604,6 +605,22 @@ def main():
     check("after logout the page redirects to /login",
           after_logout.status_code == 303 and "/login" in after_logout.headers.get("location", ""),
           after_logout.status_code)
+
+    # ---------- 13. File logging ----------
+    # Only checked when the server writes logs to a known local folder:
+    # $env:LOG_DIR='logs_test'; $env:MYEQUIP_LOG_DIR='logs_test'
+    log_dir = os.environ.get("MYEQUIP_LOG_DIR")
+    if log_dir:
+        log_dir = Path(log_dir)
+        security_log = log_dir / "security.log"
+        security_text = (security_log.read_text(encoding="utf-8")
+                         if security_log.exists() else "")
+        check("security events are written to security.log",
+              "login ok" in security_text, str(security_log))
+        check("failed logins are written to security.log",
+              "login failed" in security_text, str(security_log))
+        check("application log file is created",
+              (log_dir / "app.log").exists(), str(log_dir / "app.log"))
 
     print()
     if FAILURES:

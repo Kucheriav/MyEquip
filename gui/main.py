@@ -1,3 +1,4 @@
+import logging
 import sys
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -8,14 +9,14 @@ try:
     # normal case: running with the project root on sys.path (PyCharm / cwd=root)
     from gui.api.client import APIClient
     from gui.ui.main_window import MainWindow
+    from gui.logging_config import setup_gui_logging
 except ImportError:
     # fallback: running from inside the gui/ directory
     from api.client import APIClient
     from ui.main_window import MainWindow
+    from logging_config import setup_gui_logging
 
-
-def except_hook(cls, exception, traceback):
-    sys.__excepthook__(cls, exception, traceback)
+logger = logging.getLogger("gui")
 
 
 class StartDialog(QDialog):
@@ -118,8 +119,10 @@ class StartDialog(QDialog):
             return
         ok, message = APIClient.login(login, password)
         if ok:
+            logger.info("login ok")
             self.accept()
         else:
+            logger.warning("login failed: %s", message)
             QMessageBox.warning(self, "Ошибка входа", message)
 
     def _try_register(self):
@@ -136,12 +139,16 @@ class StartDialog(QDialog):
             return
         ok, message = APIClient.register(data)
         if ok:
+            logger.info("registration ok")
             self.accept()
         else:
+            logger.warning("registration failed: %s", message)
             QMessageBox.warning(self, "Ошибка регистрации", message)
 
 
 def main():
+    setup_gui_logging()
+    logger.info("GUI starting")
     app = QApplication(sys.argv)
     start = StartDialog()
     if start.exec() != QDialog.DialogCode.Accepted:
