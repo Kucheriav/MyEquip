@@ -27,7 +27,11 @@ class ItemPhoto(Base):
     original_name = Column(String(255), nullable=True)
     content_type = Column(String(100), nullable=False)
     size = Column(Integer, nullable=False)
-    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    uploaded_by = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     item = relationship("Item", back_populates="photos")
