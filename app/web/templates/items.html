@@ -75,7 +75,18 @@
         {% for item in items %}
         <tr>
           <td>{{ item.id }}</td>
-          <td>{{ item.name }}</td>
+          <td>
+            <div class="name-cell">
+              {% if cover_by_item.get(item.id) %}
+              <img class="thumb"
+                   src="/app/items/{{ item.id }}/photos/{{ cover_by_item[item.id] }}/file"
+                   alt="" loading="lazy">
+              {% else %}
+              <span class="thumb placeholder" aria-hidden="true"></span>
+              {% endif %}
+              <a href="/app/items/{{ item.id }}">{{ item.name }}</a>
+            </div>
+          </td>
           <td>{{ club_names.get(item.club_id, '—') }}</td>
           <td>{{ category_names.get(item.category_id, '—') }}</td>
           <td>{{ storage_names.get(item.storage_id, '—') }}</td>

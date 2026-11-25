@@ -52,6 +52,9 @@
 
     <div class="grid wide">
       <button type="submit">{{ 'Сохранить' if mode == 'edit' else 'Добавить предмет' }}</button>
+      {% if mode == 'edit' %}
+      <a class="button secondary" href="/app/items/{{ item.id }}">К карточке</a>
+      {% endif %}
       <a class="button secondary" href="/app/items">Назад</a>
     </div>
   </form>

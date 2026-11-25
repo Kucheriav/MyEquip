@@ -34,3 +34,10 @@ class Item(Base):
         back_populates="item",
         cascade="all, delete-orphan",
     )
+    # Photos are only metadata rows; the image files are removed by the
+    # photo service when the item or one photo is deleted.
+    photos = relationship(
+        "ItemPhoto",
+        back_populates="item",
+        cascade="all, delete-orphan",
+    )

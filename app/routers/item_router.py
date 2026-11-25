@@ -7,8 +7,8 @@ from app.database import get_db
 from app.crud import ItemCRUD, CategoryCRUD, StorageCRUD
 from app.schemas.item_schema import ItemCreate, ItemUpdate, ItemResponse
 from app.dependencies import require_auth
-from app.models import Item, User
-from app.services import access_service
+from app.models import Item, ItemPhoto, User
+from app.services import access_service, photo_service
 
 router = APIRouter(prefix="/api/items", tags=["items"], dependencies=[Depends(require_auth)])
 item_crud = ItemCRUD()
@@ -138,6 +138,11 @@ def delete_item(
     """Delete item (leader of the club only; storekeepers cannot)"""
     db_item = _get_visible_item(db, current_user, item_id)
     access_service.ensure_leader(db, current_user, db_item.club_id)
+    relative_paths = [
+        photo.file_path
+        for photo in db.query(ItemPhoto).filter(ItemPhoto.item_id == item_id).all()
+    ]
     if not item_crud.delete(db, item_id):
         raise HTTPException(status_code=404, detail="Item not found")
+    photo_service.unlink(relative_paths)
     return None

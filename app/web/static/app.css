@@ -183,6 +183,95 @@ details.accept button { padding: 6px 12px; }
 
 .scroll { overflow-x: auto; }
 
+/* ---------- item card ---------- */
+.item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.item-head h1 { margin: 0 0 6px; }
+.item-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.item-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 20px;
+  align-items: start;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 18px;
+  margin: 0;
+}
+.details dt { color: var(--muted); font-size: 13px; }
+.details dd { margin: 0; }
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+.photo-grid figure { margin: 0; }
+.photo-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f0f2f6;
+  display: block;
+}
+.photo-grid figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.photo-grid form { margin: 0; }
+.photo-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.photo-upload input[type="file"] { flex: 1 1 100%; min-width: 0; }
+
+button.link-plain {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+button.link-plain:hover { background: none; text-decoration: underline; }
+button.link-plain.danger { color: var(--err-ink); }
+
+.name-cell { display: flex; align-items: center; gap: 10px; }
+.thumb {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f0f2f6;
+}
+.thumb.placeholder { background: linear-gradient(135deg, #eef1f5, #e2e7ef); }
+
+@media (max-width: 900px) {
+  .item-layout { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 720px) {
   .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
   .topbar nav { order: 3; flex-basis: 100%; overflow-x: auto; }

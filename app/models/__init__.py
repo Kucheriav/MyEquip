@@ -5,6 +5,7 @@ from app.models.category_model import Category
 from app.models.parameter_model import Parameter
 from app.models.value_model import Value
 from app.models.item_model import Item
+from app.models.item_photo_model import ItemPhoto
 from app.models.storage_model import Storage
 from app.models.distribution_model import Distribution
 from app.models.breakdown_model import Breakdown
@@ -21,6 +22,7 @@ __all__ = [
     "Parameter",
     "Value",
     "Item",
+    "ItemPhoto",
     "Storage",
     "Distribution",
     "Breakdown",

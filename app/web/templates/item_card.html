@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — MyEquip{% endblock %}
+{% block content %}
+<div class="item-head">
+  <div>
+    <h1>{{ item.name }}</h1>
+    <div class="item-meta">
+      <span class="badge {{ item.status }}">{{ translate_status(item.status) }}</span>
+      {% if item.serial_number %}
+      <span class="hint">Серийный номер: {{ item.serial_number }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="grid">
+    <a class="button secondary" href="/app/items">К списку</a>
+    <a class="button secondary" href="/app/items/{{ item.id }}/edit">Изменить</a>
+  </div>
+</div>
+
+<div class="item-layout">
+  <div>
+    <div class="card">
+      <h2>Сведения</h2>
+      <dl class="details">
+        <dt>Клуб</dt><dd>{{ club_name or '—' }}</dd>
+        <dt>Категория</dt><dd>{{ category_title or '—' }}</dd>
+        <dt>Склад</dt><dd>{{ storage_name or '—' }}</dd>
+        <dt>Статус</dt><dd>{{ translate_status(item.status) }}</dd>
+        <dt>Серийный номер</dt><dd>{{ item.serial_number or '—' }}</dd>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h2>Свойства</h2>
+      {% if properties %}
+      <table>
+        <tbody>
+          {% for prop in properties %}
+          <tr>
+            <th style="width:40%">{{ prop.name }}</th>
+            <td>{{ prop.value or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">У этой категории нет свойств.</p>
+      {% endif %}
+    </div>
+
+    {% if active_distribution %}
+    <div class="card">
+      <h2>Сейчас выдано</h2>
+      <dl class="details">
+        <dt>Кому</dt><dd>{{ user_names.get(active_distribution.getter_id, '—') }}</dd>
+        <dt>Выдал</dt><dd>{{ user_names.get(active_distribution.giver_id, '—') }}</dd>
+        <dt>Дата выдачи</dt><dd>{{ ru_date(active_distribution.date) }}</dd>
+        <dt>Вернуть до</dt><dd>{{ ru_date(active_distribution.expiration_date) }}</dd>
+        {% if active_distribution.comment %}
+        <dt>Комментарий</dt><dd>{{ active_distribution.comment }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+    {% endif %}
+
+    {% if distributions %}
+    <div class="card">
+      <h2>История выдач</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Кому</th>
+              <th>Выдал</th>
+              <th>Принял</th>
+              <th>Возврат</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in distributions %}
+            <tr>
+              <td>{{ ru_date(row.date) }}</td>
+              <td>{{ user_names.get(row.getter_id, '—') }}</td>
+              <td>{{ user_names.get(row.giver_id, '—') }}</td>
+              <td>{{ user_names.get(row.accepter_id, '—') if row.accepter_id else '—' }}</td>
+              <td>{{ ru_date(row.accepting_date) }}</td>
+              <td><span class="badge {{ row.status }}">{{ translate_status(row.status) }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if transfers %}
+    <div class="card">
+      <h2>Перемещения</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Откуда</th>
+              <th>Куда</th>
+              <th>Передал</th>
+              <th>Принял</th>
+              <th>Комментарий</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in transfers %}
+            <tr>
+              <td>{{ ru_date(row.date) }}</td>
+              <td>{{ storage_names.get(row.from_storage_id, '—') }}</td>
+              <td>{{ storage_names.get(row.to_storage_id, '—') }}</td>
+              <td>{{ user_names.get(row.mover_id, '—') if row.mover_id else '—' }}</td>
+              <td>{{ user_names.get(row.receiver_id, '—') if row.receiver_id else '—' }}</td>
+              <td class="hint">{{ row.comment or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if breakdowns %}
+    <div class="card">
+      <h2>Поломки</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Описание</th>
+              <th>Отремонтировано</th>
+              <th>Ремонтировал</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in breakdowns %}
+            <tr>
+              <td>{{ ru_date(row.date) }}</td>
+              <td>{{ row.comment }}</td>
+              <td>{{ ru_date(row.repaired_date) }}</td>
+              <td>{{ user_names.get(row.repairer_id, '—') if row.repairer_id else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <aside>
+    <div class="card">
+      <h2>Фотографии</h2>
+      {% if photos %}
+      <div class="photo-grid">
+        {% for photo in photos %}
+        <figure>
+          <a href="/app/items/{{ item.id }}/photos/{{ photo.id }}/file"
+             target="_blank" rel="noopener">
+            <img src="/app/items/{{ item.id }}/photos/{{ photo.id }}/file"
+                 alt="{{ photo.original_name or item.name }}" loading="lazy">
+          </a>
+          <figcaption>
+            <span class="hint">{{ (photo.size / 1024) | round | int }} КБ ·
+              {{ ru_datetime(photo.created_at) }}</span>
+            <form method="post"
+                  action="/app/items/{{ item.id }}/photos/{{ photo.id }}/delete">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="link-plain danger" type="submit"
+                      onclick="return confirm('Удалить это фото?')">Удалить</button>
+            </form>
+          </figcaption>
+        </figure>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty">Фотографий пока нет.</p>
+      {% endif %}
+
+      <form method="post" action="/app/items/{{ item.id }}/photos"
+            enctype="multipart/form-data" class="photo-upload">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required>
+        <button type="submit">Загрузить фото</button>
+      </form>
+      <p class="hint">JPEG, PNG или WebP до {{ max_photo_mb }} МБ, не больше
+        {{ max_photos }} фото. Первое фото показывается в списке.</p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

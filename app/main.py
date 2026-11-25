@@ -15,7 +15,7 @@ from app.routers import (
     user_router, club_router, category_router, parameter_router,
     value_router, storage_router, item_router, distribution_router,
     breakdown_router, item_parameter_value_router, transfer_router,
-    auth_router, invite_router,
+    auth_router, invite_router, item_photo_router,
 )
 from app.web.auth import WebAuthRequired, login_redirect
 from app.web.routes import router as web_router
@@ -99,6 +99,7 @@ app.include_router(parameter_router.router)
 app.include_router(value_router.router)
 app.include_router(storage_router.router)
 app.include_router(item_router.router)
+app.include_router(item_photo_router.router)
 app.include_router(distribution_router.router)
 app.include_router(breakdown_router.router)
 app.include_router(item_parameter_value_router.router)

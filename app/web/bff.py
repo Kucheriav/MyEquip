@@ -66,6 +66,21 @@ async def post(path: str, token: Optional[str] = None, json: Any = None) -> tupl
     return response.status_code, _json(response)
 
 
+async def post_files(path: str, token: Optional[str], files: dict,
+                     data: Optional[dict] = None) -> tuple[int, Any]:
+    """Multipart upload (photos): forwarded straight to the API."""
+    response = await http().post(
+        path, headers=headers(token), files=files, data=data)
+    return response.status_code, _json(response)
+
+
+async def get_bytes(path: str, token: Optional[str] = None) -> tuple[int, bytes, str]:
+    """Fetch a binary response (an image) through the same access checks."""
+    response = await http().get(path, headers=headers(token))
+    content_type = response.headers.get("content-type", "application/octet-stream")
+    return response.status_code, response.content, content_type
+
+
 async def put(path: str, token: Optional[str] = None, json: Any = None) -> tuple[int, Any]:
     response = await http().put(path, headers=headers(token), json=json)
     return response.status_code, _json(response)
@@ -127,6 +142,13 @@ MESSAGES = {
     "A storekeeper invite needs club_id": "Для инвайта завхоза нужен клуб",
     "A leader invite must not have club_id": "Инвайт руководителя не привязан к клубу",
     "Role must be 'storekeeper' or 'tourist'": "Роль должна быть «завхоз» или «турист»",
+    "Photo not found": "Фото не найдено",
+    "Photo file not found": "Файл фото не найден",
+    "The file is empty": "Файл пуст",
+    "Photo is too large": "Фото слишком большое",
+    "Only JPEG, PNG and WebP images are supported":
+        "Поддерживаются только изображения JPEG, PNG и WebP",
+    "Too many photos for this item": "У вещи слишком много фотографий",
 }
 
 

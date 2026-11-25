@@ -27,6 +27,10 @@ class Config(BaseSettings):
     LOG_SLOW_MS: int = 500
     # Trust X-Forwarded-For (only enable behind nginx/Caddy)
     TRUST_PROXY: bool = False
+    # Uploaded photos (kept outside the database; back up this folder too)
+    DATA_DIR: str = "data"
+    PHOTO_MAX_MB: int = 5
+    PHOTO_MAX_PER_ITEM: int = 12
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")

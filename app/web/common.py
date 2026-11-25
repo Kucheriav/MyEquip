@@ -1,7 +1,7 @@
 """Shared pieces for the web pages: templates, rendering, small helpers."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
@@ -20,6 +20,30 @@ templates.env.globals.update(
     translate_role=labels.translate_role,
     staff_roles=labels.STAFF_ROLES,
 )
+
+
+def ru_date(value) -> str:
+    """ISO date from the API -> dd.mm.yyyy (empty values become a dash)."""
+    if not value:
+        return "—"
+    try:
+        return date.fromisoformat(str(value)[:10]).strftime("%d.%m.%Y")
+    except ValueError:
+        return str(value)
+
+
+def ru_datetime(value) -> str:
+    """ISO timestamp from the API -> dd.mm.yyyy HH:MM."""
+    if not value:
+        return "—"
+    try:
+        return datetime.fromisoformat(
+            str(value).replace("Z", "+00:00")).strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return str(value)
+
+
+templates.env.globals.update(ru_date=ru_date, ru_datetime=ru_datetime)
 
 FLASH_MESSAGES = {
     "issued": "Снаряжение выдано",
@@ -47,6 +71,8 @@ FLASH_MESSAGES = {
     "item_created": "Снаряжение добавлено",
     "item_updated": "Снаряжение сохранено",
     "item_deleted": "Снаряжение удалено",
+    "photo_added": "Фотография добавлена",
+    "photo_deleted": "Фотография удалена",
 }
 
 ITEM_STATUSES = labels.ITEM_STATUSES

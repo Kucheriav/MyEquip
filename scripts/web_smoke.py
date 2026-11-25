@@ -12,6 +12,7 @@ forms cannot override the "executor is the logged-in user" rule.
 """
 import sys
 import os
+import base64
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -505,6 +506,78 @@ def main():
     check("item properties survive the edit",
           any(p["parameter_id"] == state_param["id"] and p["value_id"] == chosen_value
               for p in item_params_after), item_params_after)
+
+    # ---------- 9b. Item card and photos ----------
+    card = browser.get(f"{BASE_URL}/app/items/{new_item_id}")
+    expect("item card renders", card, 200)
+    check("item card shows the name and properties",
+          updated_item_name in card.text and "Состояние" in card.text,
+          card.text[:400])
+    history_card = browser.get(f"{BASE_URL}/app/items/{item_id}")
+    check("item card shows the history sections",
+          "История выдач" in history_card.text
+          and "Перемещения" in history_card.text)
+
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+        "YAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
+    upload = browser.post(
+        f"{BASE_URL}/app/items/{new_item_id}/photos",
+        allow_redirects=False, data={"csrf_token": csrf},
+        files={"file": ("tiny.png", png, "image/png")})
+    check("photo is uploaded through the item card",
+          upload.status_code == 303
+          and "ok=photo_added" in upload.headers.get("location", ""),
+          f"{upload.status_code} {upload.headers.get('location')}")
+
+    photos_api = api.get(
+        f"{BASE_URL}/api/item-photos/item/{new_item_id}", headers=auth).json()
+    check("photo metadata is stored",
+          len(photos_api) == 1 and photos_api[0]["content_type"] == "image/png"
+          and photos_api[0]["size"] == len(png), photos_api)
+    photo_id = photos_api[0]["id"] if photos_api else 0
+
+    card_with_photo = browser.get(f"{BASE_URL}/app/items/{new_item_id}")
+    check("item card shows the uploaded photo",
+          f"/app/items/{new_item_id}/photos/{photo_id}/file" in card_with_photo.text)
+
+    photo_file = browser.get(
+        f"{BASE_URL}/app/items/{new_item_id}/photos/{photo_id}/file")
+    check("the photo file is served through the session",
+          photo_file.status_code == 200 and photo_file.content == png,
+          photo_file.status_code)
+
+    list_with_photo = browser.get(
+        f"{BASE_URL}/app/items", params={"q": f"SN-{STAMP}"})
+    check("the items list shows a thumbnail",
+          f"/app/items/{new_item_id}/photos/{photo_id}/file" in list_with_photo.text)
+
+    bad_upload = browser.post(
+        f"{BASE_URL}/app/items/{new_item_id}/photos",
+        allow_redirects=False, data={"csrf_token": csrf},
+        files={"file": ("evil.txt", b"not an image", "image/png")})
+    check("a non-image file is rejected",
+          bad_upload.status_code == 303
+          and "error=" in bad_upload.headers.get("location", ""),
+          f"{bad_upload.status_code} {bad_upload.headers.get('location')}")
+    check("the rejected upload did not add a photo",
+          len(api.get(f"{BASE_URL}/api/item-photos/item/{new_item_id}",
+                      headers=auth).json()) == 1)
+
+    removed_photo = browser.post(
+        f"{BASE_URL}/app/items/{new_item_id}/photos/{photo_id}/delete",
+        allow_redirects=False, data={"csrf_token": csrf})
+    check("photo is deleted through the item card",
+          removed_photo.status_code == 303
+          and "ok=photo_deleted" in removed_photo.headers.get("location", ""),
+          f"{removed_photo.status_code} {removed_photo.headers.get('location')}")
+    check("deleted photo is gone from the API",
+          api.get(f"{BASE_URL}/api/item-photos/item/{new_item_id}",
+                  headers=auth).json() == [])
+    check("deleted photo file is no longer served",
+          browser.get(
+              f"{BASE_URL}/app/items/{new_item_id}/photos/{photo_id}/file"
+          ).status_code == 404)
 
     # ---------- 10. Search and pagination ----------
     search_hit = browser.get(f"{BASE_URL}/app/items", params={"q": f"SN-{STAMP}"})

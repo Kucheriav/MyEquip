@@ -1,12 +1,15 @@
-"""Equipment: list, issue and acceptance."""
+"""Equipment: list, card, issue and acceptance."""
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import Response
 
 from app import labels
+from app.config import config
 from app.web import auth, bff
 from app.web.common import (
     ITEM_STATUSES, club_members, club_storages, csrf_error, fio, is_staff,
@@ -63,6 +66,30 @@ async def _parameter_payloads(request: Request, token: str,
     return payloads
 
 
+def _property_value_text(entry: dict, value_texts: dict) -> str:
+    """Readable value of one item property (predefined or custom)."""
+    if entry.get("value_id") is not None:
+        text = value_texts.get(entry["value_id"], "")
+    else:
+        text = entry.get("custom_value") or ""
+    if text == "true":
+        return "да"
+    if text == "false":
+        return "нет"
+    return text
+
+
+def _property_rows(entries: list, parameter_names: dict,
+                   value_texts: dict) -> list[dict]:
+    return [
+        {
+            "name": parameter_names.get(entry["parameter_id"], ""),
+            "value": _property_value_text(entry, value_texts),
+        }
+        for entry in entries or []
+    ]
+
+
 @router.get("/app")
 async def app_index():
     return redirect("/app/items")
@@ -88,24 +115,22 @@ async def items_page(
     _, item_parameters = await bff.get("/api/item-parameters/", token, limit=1000)
     _, parameters = await bff.get("/api/parameters/", token)
     _, values = await bff.get("/api/values/", token)
+    _, covers = await bff.get("/api/item-photos/covers", token)
     code, items = await bff.get(
         "/api/items/", token, club_id=club_id, storage_id=storage_id, status=status,
         q=q, skip=skip, limit=limit)
     items = items if isinstance(items, list) else []
+    cover_by_item = {
+        row["item_id"]: row["photo_id"]
+        for row in (covers if isinstance(covers, list) else [])
+    }
 
     parameter_names = {p["id"]: p["name"] for p in parameters or []}
     value_texts = {v["id"]: v["value"] for v in values or []}
     props_by_item: dict[int, list] = {}
     for entry in item_parameters or []:
-        if entry.get("value_id") is not None:
-            text = value_texts.get(entry["value_id"], "")
-        else:
-            text = entry.get("custom_value") or ""
-        if text == "true":
-            text = "да"
-        elif text == "false":
-            text = "нет"
         name = parameter_names.get(entry["parameter_id"], "")
+        text = _property_value_text(entry, value_texts)
         props_by_item.setdefault(entry["item_id"], []).append(f"{name} — {text}")
 
     pager_data = pager(
@@ -121,6 +146,7 @@ async def items_page(
         storage_names={s["id"]: s["name"] for s in storages or []},
         category_names={c["id"]: c.get("title", "") for c in categories or []},
         props_by_item=props_by_item,
+        cover_by_item=cover_by_item,
         filters={"club_id": club_id, "storage_id": storage_id, "status": status},
         q=q or "",
         api_error=bff.error_detail(items) if code >= 400 else None,
@@ -495,4 +521,148 @@ async def update_item(
     for extra in await _parameter_payloads(request, token, category_id):
         await bff.post("/api/item-parameters/", token, {"item_id": item_id, **extra})
 
-    return redirect("/app/items", ok="item_updated")
+    return redirect(f"/app/items/{item_id}", ok="item_updated")
+
+
+# ---------- item card ----------
+def _as_list(value) -> list:
+    return value if isinstance(value, list) else []
+
+
+@router.get("/app/items/{item_id}")
+async def item_card_page(
+    request: Request,
+    item_id: int,
+    user: dict = Depends(auth.require_user),
+):
+    if not is_staff(user):
+        return render(request, "tourist.html", user=user)
+
+    token = auth.session_token(request)
+    code, item = await bff.get(f"/api/items/{item_id}", token)
+    if code != 200 or not isinstance(item, dict):
+        return redirect("/app/items", error=bff.error_detail(item, "Вещь не найдена"))
+
+    results = await asyncio.gather(
+        bff.get("/api/clubs/", token),
+        bff.get("/api/storages/", token),
+        bff.get("/api/categories/", token),
+        bff.get(f"/api/item-parameters/item/{item_id}", token),
+        bff.get("/api/parameters/", token),
+        bff.get("/api/values/", token),
+        bff.get(f"/api/item-photos/item/{item_id}", token),
+        bff.get(f"/api/distributions/item/{item_id}", token),
+        bff.get(f"/api/transfers/item/{item_id}", token),
+        bff.get(f"/api/breakdowns/item/{item_id}", token),
+        bff.get("/api/users/", token, limit=1000),
+    )
+    (_, clubs), (_, storages), (_, categories), (_, item_parameters), \
+        (_, parameters), (_, values), (_, photos), (_, distributions), \
+        (_, transfers), (_, breakdowns), (_, users) = results
+
+    parameter_names = {p["id"]: p["name"] for p in _as_list(parameters)}
+    value_texts = {v["id"]: v["value"] for v in _as_list(values)}
+    user_names = {u["id"]: fio(u) for u in _as_list(users)}
+    distributions = sorted(
+        _as_list(distributions), key=lambda row: row["id"], reverse=True)
+    active_distribution = next(
+        (row for row in distributions if row.get("status") == "issued"), None)
+
+    return render(
+        request, "item_card.html", user=user, active="items",
+        item=item,
+        club_name=next(
+            (club["name"] for club in _as_list(clubs)
+             if club["id"] == item["club_id"]), ""),
+        category_title=next(
+            (category.get("title", "") for category in _as_list(categories)
+             if category["id"] == item["category_id"]), ""),
+        storage_name=next(
+            (storage["name"] for storage in _as_list(storages)
+             if storage["id"] == item["storage_id"]), ""),
+        properties=_property_rows(
+            _as_list(item_parameters), parameter_names, value_texts),
+        photos=sorted(_as_list(photos), key=lambda photo: photo["id"]),
+        active_distribution=active_distribution,
+        distributions=distributions,
+        transfers=sorted(
+            _as_list(transfers), key=lambda row: row["id"], reverse=True),
+        breakdowns=sorted(
+            _as_list(breakdowns), key=lambda row: row["id"], reverse=True),
+        user_names=user_names,
+        storage_names={
+            storage["id"]: storage["name"] for storage in _as_list(storages)},
+        max_photo_mb=config.PHOTO_MAX_MB,
+        max_photos=config.PHOTO_MAX_PER_ITEM,
+    )
+
+
+@router.post("/app/items/{item_id}/photos")
+async def upload_item_photo(
+    request: Request,
+    item_id: int,
+    file: UploadFile = File(...),
+    csrf_token: str = Form(""),
+    user: dict = Depends(auth.require_user),
+):
+    if not auth.check_csrf(request, csrf_token):
+        return csrf_error(request)
+    if not is_staff(user):
+        return redirect(f"/app/items/{item_id}", error="Недостаточно прав")
+
+    limit = config.PHOTO_MAX_MB * 1024 * 1024
+    if (getattr(file, "size", None) or 0) > limit:
+        return redirect(f"/app/items/{item_id}", error="Фото слишком большое")
+
+    data = await file.read()
+    status, payload = await bff.post_files(
+        f"/api/item-photos/item/{item_id}",
+        auth.session_token(request),
+        {"file": (file.filename or "photo", data,
+                  file.content_type or "application/octet-stream")},
+    )
+    if status != 201:
+        return redirect(f"/app/items/{item_id}", error=bff.error_detail(payload))
+    return redirect(f"/app/items/{item_id}", ok="photo_added")
+
+
+@router.post("/app/items/{item_id}/photos/{photo_id}/delete")
+async def delete_item_photo(
+    request: Request,
+    item_id: int,
+    photo_id: int,
+    csrf_token: str = Form(""),
+    user: dict = Depends(auth.require_user),
+):
+    if not auth.check_csrf(request, csrf_token):
+        return csrf_error(request)
+    if not is_staff(user):
+        return redirect(f"/app/items/{item_id}", error="Недостаточно прав")
+
+    status, payload = await bff.delete(
+        f"/api/item-photos/{photo_id}", auth.session_token(request))
+    if status not in (200, 204):
+        return redirect(f"/app/items/{item_id}", error=bff.error_detail(payload))
+    return redirect(f"/app/items/{item_id}", ok="photo_deleted")
+
+
+@router.get("/app/items/{item_id}/photos/{photo_id}/file")
+async def item_photo_file(
+    request: Request,
+    item_id: int,
+    photo_id: int,
+    user: dict = Depends(auth.require_user),
+):
+    """Proxy the image so the session cookie (not a public URL) grants access."""
+    status, content, content_type = await bff.get_bytes(
+        f"/api/item-photos/{photo_id}/file", auth.session_token(request))
+    if status != 200:
+        return Response(status_code=status)
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

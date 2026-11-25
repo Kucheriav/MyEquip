@@ -11,6 +11,7 @@ from app.routers import (
     item_parameter_value_router,
     transfer_router,
     auth_router,
+    item_photo_router,
 )
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "value_router",
     "storage_router",
     "item_router",
+    "item_photo_router",
     "distribution_router",
     "breakdown_router",
     "item_parameter_value_router",
